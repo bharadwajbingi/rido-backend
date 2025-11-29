@@ -1,0 +1,136 @@
+##############################
+# Java / Gradle
+##############################
+
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+.zipignore
+
+# Virtual machine crash logs
+hs_err_pid*
+replay_pid*
+
+##############################
+# Gradle
+##############################
+
+.gradle/
+build/
+!**/src/main/**
+!**/src/test/**
+
+# Local Gradle Wrapper binaries
+.gradle/
+**/.gradle/
+**/build/
+**/out/
+**/.idea/
+
+# Ignore gradle caches
+.caches/
+
+##############################
+# IntelliJ / VS Code
+##############################
+
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VSCode
+.vscode/
+
+##############################
+# Operating System
+##############################
+
+# Windows
+Thumbs.db
+*.lnk
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+##############################
+# Node / Tools (if any)
+##############################
+
+node_modules/
+
+##############################
+# Docker
+##############################
+
+# Ignore build context junk
+**/Dockerfile*
+infra/.dockerignore
+
+##############################
+# Project specific ignores
+##############################
+
+# Ignore your zip-tool folder
+zip-tool/
+
+# Ignore any .zip or backup export files
+*.zip
+*.7z
+*.rar
+
+# Ignore test JSON collections
+auth/auth-tests*.json
+
+# Ignore temporary files
+*.tmp
+*.bak
+*~
+
+##############################
+# Logs & temp runtime files
+##############################
+
+/tmp/
+*.pid
+
+##############################
+# Secrets (VERY IMPORTANT)
+##############################
+
+# Env files
+.env
+*.env
+
+# Local credentials
+auth/src/main/resources/application-dev.yml
+gateway/src/main/resources/application-dev.yml
+
+##############################
+# Flyway / Database
+##############################
+
+# Ignore generated DB files, backups
+*.sql
+*.db
+*.dump

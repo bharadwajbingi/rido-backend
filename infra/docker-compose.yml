@@ -1,0 +1,98 @@
+version: "3.9"
+
+services:
+  # ============================
+  # POSTGRES
+  # ============================
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ride_hailing
+      POSTGRES_USER: rh_user
+      POSTGRES_PASSWORD: rh_pass
+      TZ: Asia/Kolkata
+      PGTZ: Asia/Kolkata
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rh_user -d ride_hailing -h localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rido-net
+
+  # ============================
+  # REDIS
+  # ============================
+  redis:
+    image: redis:7
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rido-net
+
+  # ============================
+  # AUTH SERVICE ONLY
+  # ============================
+  auth:
+    build:
+      context: ../auth
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+
+      # POSTGRES
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ride_hailing
+      SPRING_DATASOURCE_USERNAME: rh_user
+      SPRING_DATASOURCE_PASSWORD: rh_pass
+
+      # REDIS
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      # JWT (PLAIN TEXT SECRET)
+      JWT_SECRET: myUltraSecureJwtSecret_2025_XYZ_!@#_DoNotShare_9876543210
+      JWT_ACCESS_TTL: 300
+      JWT_REFRESH_TTL: 1209600
+
+    ports:
+      - "8081:8081"
+    networks:
+      - rido-net
+  gateway:
+    build:
+      context: ../gateway
+      dockerfile: Dockerfile
+    depends_on:
+      auth:
+        condition: service_started
+    environment:
+      # Same JWT secret as Auth
+      JWT_SECRET: myUltraSecureJwtSecret_2025_XYZ_!@#_DoNotShare_9876543210
+
+    ports:
+      - "8080:8080"
+    networks:
+      - rido-net
+
+volumes:
+  pgdata:
+
+networks:
+  rido-net:
+    driver: bridge

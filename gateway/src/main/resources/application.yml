@@ -1,0 +1,28 @@
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+
+server:
+  port: 8080
+
+jwt:
+  secret: ${JWT_SECRET:myUltraSecureJwtSecret_2025_XYZ_!@#_DoNotShare_9876543210}
+
+spring:
+  cloud:
+    gateway:
+      default-filters:
+        - JwtAuthFilter
+
+      routes:
+        - id: auth-service
+          uri: http://auth:8081
+          predicates:
+            - Path=/auth/**
+          filters:
+            - RemoveRequestHeader=Cookie
