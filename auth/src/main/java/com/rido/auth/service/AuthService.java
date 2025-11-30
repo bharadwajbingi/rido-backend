@@ -6,6 +6,9 @@ import com.rido.auth.dto.TokenResponse;
 import com.rido.auth.exception.AccountLockedException;
 import com.rido.auth.exception.InvalidCredentialsException;
 import com.rido.auth.exception.UsernameAlreadyExistsException;
+import com.rido.auth.exception.TokenExpiredException;
+import com.rido.auth.exception.ReplayDetectedException;
+
 import com.rido.auth.model.RefreshTokenEntity;
 import com.rido.auth.model.UserEntity;
 import com.rido.auth.repo.RefreshTokenRepository;
@@ -156,17 +159,22 @@ public class AuthService {
         RefreshTokenEntity rt = refreshTokenRepository.findByTokenHash(hash)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
 
+        // ===== NEW: REPLAY DETECTION EXCEPTION =====
         if (rt.isRevoked()) {
+            log.error("auth_refresh_replay_detected", kv("userId", rt.getUserId()));
             refreshReplayCounter.increment();
             refreshTokenRepository.revokeAllForUser(rt.getUserId());
-            throw new InvalidCredentialsException("Refresh token revoked");
+            throw new ReplayDetectedException("Refresh token replay detected");
         }
 
         Instant now = refreshTokenRepository.getDatabaseTime();
+
+        // ===== NEW: TOKEN EXPIRED EXCEPTION =====
         if (rt.getExpiresAt().minusSeconds(5).isBefore(now)) {
+            log.warn("auth_refresh_expired", kv("userId", rt.getUserId()));
             refreshReplayCounter.increment();
             refreshTokenRepository.revokeAllForUser(rt.getUserId());
-            throw new InvalidCredentialsException("Refresh token expired");
+            throw new TokenExpiredException("Refresh token expired");
         }
 
         // rotation

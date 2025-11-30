@@ -43,6 +43,7 @@ services:
 
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      JWT_REFRESH_TTL: 20
 
       # ❌ REMOVE JWT_SECRET – auth now uses RSA KeyStore
     ports:
