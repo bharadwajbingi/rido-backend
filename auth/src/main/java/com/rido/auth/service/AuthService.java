@@ -10,9 +10,11 @@ import com.rido.auth.model.UserEntity;
 import com.rido.auth.repo.RefreshTokenRepository;
 import com.rido.auth.repo.UserRepository;
 import com.rido.auth.util.HashUtils;
+
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,6 +34,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final LoginAttemptService loginAttemptService;
+    private final TokenBlacklistService tokenBlacklistService;
 
     private final String jwtSecret;
     private final long accessTtlSeconds;
@@ -49,7 +52,8 @@ public class AuthService {
             LoginAttemptService loginAttemptService,
             JwtConfig jwtConfig,
             @Value("${auth.login.max-failed-attempts:5}") int maxFailedAttempts,
-            @Value("${auth.login.lockout-duration-seconds:300}") long lockoutDurationSeconds
+            @Value("${auth.login.lockout-duration-seconds:300}") long lockoutDurationSeconds,
+            TokenBlacklistService tokenBlacklistService
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -62,33 +66,37 @@ public class AuthService {
 
         this.maxFailedAttempts = maxFailedAttempts;
         this.lockoutDurationSeconds = lockoutDurationSeconds;
+
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     @PostConstruct
     public void init() {
-        byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
-        this.signingKey = Keys.hmacShaKeyFor(keyBytes);
+        this.signingKey = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 
-    // =====================================================
+    // ============================================================
     // REGISTER
-    // =====================================================
+    // ============================================================
     public void register(String username, String password) {
+
         userRepository.findByUsername(username)
-                .ifPresent(u -> { throw new UsernameAlreadyExistsException("Username already exists"); });
+                .ifPresent(u -> {
+                    throw new UsernameAlreadyExistsException("Username already exists");
+                });
 
         UserEntity user = new UserEntity();
         user.setUsername(username);
-        user.setPasswordHash(passwordEncoder.encode(password));  // Argon2
+        user.setPasswordHash(passwordEncoder.encode(password)); // Argon2id
         user.setRole("user");
 
         userRepository.save(user);
     }
 
-    // =====================================================
+    // ============================================================
     // LOGIN
-    // =====================================================
-    public TokenResponse login(String username, String password, String deviceId, String ip) {
+    // ============================================================
+    public TokenResponse login(String username, String password, String deviceId, String ip, String userAgent) {
 
         loginAttemptService.ensureNotLocked(username);
 
@@ -111,12 +119,12 @@ public class AuthService {
 
         loginAttemptService.onSuccess(username, ip, user);
 
-        return createTokens(user.getId(), deviceId, ip);
+        return createTokens(user.getId(), deviceId, ip, userAgent);
     }
 
-    // =====================================================
-    // REFRESH TOKEN
-    // =====================================================
+    // ============================================================
+    // REFRESH TOKEN ROTATION
+    // ============================================================
     public TokenResponse refresh(String refreshToken, String deviceId, String ip) {
 
         String hash = HashUtils.sha256(refreshToken);
@@ -124,11 +132,13 @@ public class AuthService {
         RefreshTokenEntity rt = refreshTokenRepository.findByTokenHash(hash)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
 
+        // replay detection
         if (rt.isRevoked()) {
             refreshTokenRepository.revokeAllForUser(rt.getUserId());
             throw new InvalidCredentialsException("Refresh token revoked");
         }
 
+        // expiry check using DB clock
         Instant now = refreshTokenRepository.getDatabaseTime();
         Instant expCheck = rt.getExpiresAt().minusSeconds(5);
 
@@ -137,40 +147,61 @@ public class AuthService {
             throw new InvalidCredentialsException("Refresh token expired");
         }
 
+        // invalidate old token
         rt.setRevoked(true);
         refreshTokenRepository.save(rt);
 
-        return createTokens(rt.getUserId(), deviceId, ip);
+        // reuse stored session metadata
+        String userAgent = rt.getUserAgent();
+        String finalDeviceId = (rt.getDeviceId() != null ? rt.getDeviceId() : deviceId);
+        String finalIp = (rt.getIp() != null ? rt.getIp() : ip);
+
+        return createTokens(rt.getUserId(), finalDeviceId, finalIp, userAgent);
     }
 
-    // =====================================================
+    // ============================================================
     // LOGOUT
-    // =====================================================
-    public void logout(String refreshToken) {
+    // ============================================================
+    public void logout(String refreshToken, String accessToken) {
+
+        if (refreshToken == null || refreshToken.isBlank())
+            throw new InvalidCredentialsException("Missing refresh token");
+
+        if (accessToken == null || accessToken.isBlank())
+            throw new InvalidCredentialsException("Missing access token");
+
+        tokenBlacklistService.blacklist(accessToken);
+
         String hash = HashUtils.sha256(refreshToken);
 
         RefreshTokenEntity rt = refreshTokenRepository.findByTokenHash(hash)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
 
-        refreshTokenRepository.revokeAllForUser(rt.getUserId());
+        if (rt.isRevoked())
+            throw new InvalidCredentialsException("Refresh token already revoked");
+
+        rt.setRevoked(true);
+        refreshTokenRepository.save(rt);
     }
 
-    // =====================================================
-    // TOKEN CREATION
-    // =====================================================
-    private TokenResponse createTokens(UUID userId, String deviceId, String ip) {
+    // ============================================================
+    // INTERNAL TOKEN CREATION
+    // ============================================================
+    private TokenResponse createTokens(UUID userId, String deviceId, String ip, String userAgent) {
 
         Instant now = Instant.now();
 
+        // access token with JTI
         Instant accessExp = now.plusSeconds(accessTtlSeconds);
         String accessToken = Jwts.builder()
                 .setSubject(userId.toString())
-                .setId(UUID.randomUUID().toString())
+                .setId(UUID.randomUUID().toString()) // JTI
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(accessExp))
                 .signWith(signingKey, SignatureAlgorithm.HS256)
                 .compact();
 
+        // refresh token
         String refreshToken = UUID.randomUUID().toString();
         String refreshHash = HashUtils.sha256(refreshToken);
         Instant refreshExp = now.plusSeconds(refreshTtlSeconds);
@@ -182,6 +213,8 @@ public class AuthService {
         rt.setRevoked(false);
         rt.setDeviceId(deviceId);
         rt.setIp(ip);
+        rt.setUserAgent(userAgent);
+        rt.setJti(UUID.randomUUID());
 
         refreshTokenRepository.save(rt);
 

@@ -3,17 +3,23 @@ package com.rido.gateway.filter
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.security.Keys
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.cloud.gateway.filter.GatewayFilter
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Mono
 import java.nio.charset.StandardCharsets
 
-@Component
+@Component("JwtAuthFilter")
 class JwtAuthFilter(
-    @Value("\${jwt.secret}") private val jwtSecret: String
+    @Value("\${jwt.secret}") private val jwtSecret: String,
+
+    @Qualifier("reactiveStringRedisTemplate")
+    private val redis: ReactiveStringRedisTemplate
+
 ) : AbstractGatewayFilterFactory<JwtAuthFilter.Config>(Config::class.java) {
 
     class Config
@@ -23,11 +29,11 @@ class JwtAuthFilter(
 
             val path = exchange.request.path.toString()
 
-            // Public endpoints (no JWT needed)
+            // Public routes
             if (path.startsWith("/auth/login") ||
                 path.startsWith("/auth/register") ||
-                path.startsWith("/auth/refresh")||
-                path.startsWith("/auth/logout")
+                path.startsWith("/auth/refresh") || 
+                path.startsWith("/auth/debug/unlock")
             ) {
                 return@GatewayFilter chain.filter(exchange)
             }
@@ -35,33 +41,41 @@ class JwtAuthFilter(
             val token = extractToken(exchange.request.headers)
                 ?: return@GatewayFilter unauthorized(exchange)
 
-            try {
-                // KEEP THIS EXACT — UTF-8 key
-                val key = Keys.hmacShaKeyFor(jwtSecret.toByteArray(StandardCharsets.UTF_8))
+            val signingKey = Keys.hmacShaKeyFor(jwtSecret.toByteArray(StandardCharsets.UTF_8))
 
-                val claims = Jwts.parserBuilder()
-                    .setSigningKey(key)
+            val claims = try {
+                Jwts.parserBuilder()
+                    .setSigningKey(signingKey)
                     .build()
                     .parseClaimsJws(token)
-
-                val userId = claims.body.subject
-
-                val mutatedExchange = exchange.mutate()
-                    .request { it.header("X-User-ID", userId) }
-                    .build()
-
-                chain.filter(mutatedExchange)
-
+                    .body
             } catch (e: Exception) {
-                unauthorized(exchange)
+                return@GatewayFilter unauthorized(exchange)
             }
+
+            val jti = claims.id ?: return@GatewayFilter unauthorized(exchange)
+            val userId = claims.subject ?: return@GatewayFilter unauthorized(exchange)
+
+            redis.hasKey("auth:jti:blacklist:$jti")
+                .flatMap { isBlacklisted ->
+                    if (isBlacklisted) {
+                        exchange.response.statusCode = HttpStatus.UNAUTHORIZED
+                        return@flatMap exchange.response.setComplete()
+                    }
+
+                    val mutated = exchange.mutate()
+                        .request { it.header("X-User-ID", userId) }
+                        .build()
+
+                    chain.filter(mutated)
+                }
         }
     }
 
     private fun extractToken(headers: HttpHeaders): String? {
-        val auth = headers.getFirst(HttpHeaders.AUTHORIZATION) ?: return null
-        if (!auth.startsWith("Bearer ")) return null
-        return auth.substring(7)
+        val raw = headers.getFirst(HttpHeaders.AUTHORIZATION) ?: return null
+        if (!raw.startsWith("Bearer ")) return null
+        return raw.substring(7)
     }
 
     private fun unauthorized(exchange: org.springframework.web.server.ServerWebExchange): Mono<Void> {

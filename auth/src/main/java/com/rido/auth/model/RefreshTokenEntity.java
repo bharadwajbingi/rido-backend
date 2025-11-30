@@ -9,8 +9,8 @@ import java.util.UUID;
 public class RefreshTokenEntity {
 
     @Id
-    @Column(nullable = false, updatable = false)
-    private UUID id = UUID.randomUUID();
+    @GeneratedValue
+    private UUID id;
 
     @Column(name = "user_id", nullable = false)
     private UUID userId;
@@ -24,20 +24,27 @@ public class RefreshTokenEntity {
     @Column(nullable = false)
     private boolean revoked = false;
 
+    @Column(name = "device_id")
     private String deviceId;
+
+    @Column(name = "user_agent")
     private String userAgent;
+
+    @Column(name = "ip")
     private String ip;
 
     @Column
     private UUID jti;
 
-    @Column(nullable = false)
+    @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
     // Getters & setters
+
     public UUID getId() {
         return id;
     }
+    // No setter for id → JPA manages it
 
     public UUID getUserId() {
         return userId;

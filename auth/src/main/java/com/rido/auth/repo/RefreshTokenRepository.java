@@ -1,4 +1,5 @@
 package com.rido.auth.repo;
+import java.util.List;
 
 import com.rido.auth.model.RefreshTokenEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,4 +23,6 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity
     @Transactional
     @Query("UPDATE RefreshTokenEntity r SET r.revoked = true WHERE r.userId = :userId")
     void revokeAllForUser(@Param("userId") UUID userId);
+    List<RefreshTokenEntity> findByUserIdAndRevokedFalse(UUID userId);
+
 }

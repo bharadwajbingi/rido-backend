@@ -3,6 +3,7 @@ package com.rido.auth.service;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -53,7 +54,7 @@ public class TokenBlacklistService {
             );
 
         } catch (Exception ignored) {
-            // ignore invalid/expired tokens
+            // invalid token, no blacklist needed
         }
     }
 

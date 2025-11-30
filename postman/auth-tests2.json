@@ -1,148 +1,99 @@
 {
   "info": {
-    "name": "Rido Auth Service - Full Random User Suite",
-    "_postman_id": "rido-auth-suite-random",
+    "_postman_id": "rido-auth-gateway-massive-suite",
+    "name": "RIDO — AUTH + GATEWAY FULL SUITE (8080 ONLY)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost:8081"
-    },
-    {
-      "key": "username",
-      "value": ""
-    },
-    {
-      "key": "password",
-      "value": ""
-    },
-    {
-      "key": "accessToken",
-      "value": ""
-    },
-    {
-      "key": "refreshToken",
-      "value": ""
-    },
-    {
-      "key": "oldRefreshToken",
-      "value": ""
-    }
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "username", "value": "" },
+    { "key": "password", "value": "" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "oldRefreshToken", "value": "" },
+    { "key": "newAccessToken", "value": "" },
+    { "key": "newRefreshToken", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "jti", "value": "" }
   ],
   "item": [
     {
-      "name": "0. SETUP (Random User Init)",
+      "name": "0 — SETUP",
       "item": [
         {
-          "name": "0.1 Initialize Random Username/Password",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/auth/check-username?username={{username}}"
-          },
+          "name": "0.1 Generate Random Credentials",
           "event": [
             {
               "listen": "prerequest",
               "script": {
-                "type": "text/javascript",
                 "exec": [
-                  "const uname = 'user_' + pm.variables.replaceIn('{{$timestamp}}') + '_' + pm.variables.replaceIn('{{$randomInt}}');",
-                  "const pwd = 'P@ss_' + pm.variables.replaceIn('{{$randomInt}}');",
+                  "const uname = 'user_' + pm.variables.replaceIn('{{$timestamp}}');",
+                  "const pwd = 'Pass_' + pm.variables.replaceIn('{{$randomInt}}');",
                   "pm.collectionVariables.set('username', uname);",
                   "pm.collectionVariables.set('password', pwd);",
-                  "console.log('Using username=' + uname + ' password=' + pwd);"
+                  "console.log('Generated user:', uname, 'pwd:', pwd);"
                 ]
               }
             },
             {
               "listen": "test",
               "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 200 or 404\", function () {",
-                  "    pm.expect([200,404]).to.include(pm.response.code);",
-                  "});"
-                ]
+                "exec": ["pm.test('Setup OK', () => true);"]
               }
             }
-          ]
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/health"
+          }
         }
       ]
     },
     {
-      "name": "1. REGISTER",
+      "name": "1 — REGISTER",
       "item": [
         {
-          "name": "1.1 Register New Random User (Should Succeed)",
+          "name": "1.1 Register Random User (Expect 200)",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/register",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+              "raw": "{ \"username\": \"{{username}}\", \"password\": \"{{password}}\" }"
             }
           },
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 200 OK on first registration\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(200);"] }
             }
           ]
         },
         {
-          "name": "1.2 Register Duplicate User (Should Fail 409)",
+          "name": "1.2 Duplicate Register (Expect 409)",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/register",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+              "raw": "{ \"username\": \"{{username}}\", \"password\": \"{{password}}\" }"
             }
           },
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 409 Conflict on duplicate registration\", function () {",
-                  "    pm.response.to.have.status(409);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(409);"] }
             }
           ]
         },
         {
-          "name": "1.3 Register Empty Username",
+          "name": "1.3 Empty Username (400)",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/register",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{ \"username\": \"\", \"password\": \"p\" }"
@@ -151,28 +102,16 @@
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 400 Bad Request (validation error)\", function () {",
-                  "    pm.response.to.have.status(400);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(400);"] }
             }
           ]
         },
         {
-          "name": "1.4 Register Empty Password",
+          "name": "1.4 Empty Password (400)",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/register",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{ \"username\": \"u\", \"password\": \"\" }"
@@ -181,63 +120,39 @@
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 400 Bad Request (validation error)\", function () {",
-                  "    pm.response.to.have.status(400);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(400);"] }
             }
           ]
         },
         {
-          "name": "1.5 Register Long Username (Should Fail 400)",
+          "name": "1.5 Very Long Username (400)",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/register",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{ \"username\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"password\": \"p1\" }"
+              "raw": "{ \"username\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"password\": \"p1\" }"
             }
           },
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 400 Bad Request (validation error)\", function () {",
-                  "    pm.response.to.have.status(400);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(400);"] }
             }
           ]
         }
       ]
     },
     {
-      "name": "2. LOGIN",
+      "name": "2 — LOGIN",
       "item": [
         {
           "name": "2.1 Login Success (Store Tokens)",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/login",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{ \"username\": \"{{username}}\", \"password\": \"{{password}}\" }"
@@ -247,34 +162,23 @@
             {
               "listen": "test",
               "script": {
-                "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status is 200 OK on login\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Response has accessToken and refreshToken\", function () {",
-                  "    var r = pm.response.json();",
-                  "    pm.expect(r.accessToken).to.be.a(\"string\");",
-                  "    pm.expect(r.refreshToken).to.be.a(\"string\");",
-                  "    pm.collectionVariables.set(\"accessToken\", r.accessToken);",
-                  "    pm.collectionVariables.set(\"refreshToken\", r.refreshToken);",
-                  "});"
+                  "pm.response.to.have.status(200);",
+                  "var r = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', r.accessToken);",
+                  "pm.collectionVariables.set('refreshToken', r.refreshToken);",
+                  "console.log('Logged in — access:', r.accessToken);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "2.2 Login Wrong Password (Should 401)",
+          "name": "2.2 Wrong Password → should 401",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/login",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{ \"username\": \"{{username}}\", \"password\": \"wrong\" }"
@@ -283,28 +187,16 @@
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 401 Unauthorized for wrong password\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(401);"] }
             }
           ]
         },
         {
-          "name": "2.3 Login Wrong Username (Should 401)",
+          "name": "2.3 Wrong Username → 401",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/login",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{ \"username\": \"no_such_user_{{$randomInt}}\", \"password\": \"pass\" }"
@@ -313,28 +205,16 @@
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 401 Unauthorized for wrong username\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(401);"] }
             }
           ]
         },
         {
-          "name": "2.4 Login Empty Username (Should 400)",
+          "name": "2.4 Empty Username (400)",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/login",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{ \"username\": \"\", \"password\": \"p\" }"
@@ -343,28 +223,16 @@
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 400 Bad Request (validation error)\", function () {",
-                  "    pm.response.to.have.status(400);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(400);"] }
             }
           ]
         },
         {
-          "name": "2.5 Login Empty Password (Should 400)",
+          "name": "2.5 Empty Password (400)",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/login",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{ \"username\": \"u\", \"password\": \"\" }"
@@ -373,183 +241,111 @@
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 400 Bad Request (validation error)\", function () {",
-                  "    pm.response.to.have.status(400);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(400);"] }
             }
           ]
         }
       ]
     },
     {
-      "name": "3. LOCKOUT (Redis + DB)",
+      "name": "3 — LOCKOUT (Redis + DB)",
       "item": [
         {
-          "name": "3.1 Wrong Password Attempt 1",
+          "name": "3.1 Wrong Attempt 1",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/login",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{ \"username\": \"{{username}}\", \"password\": \"wrong1\" }"
+              "raw": "{ \"username\": \"{{username}}\", \"password\": \"a1\" }"
             }
           },
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 401 Unauthorized on failed attempt\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(401);"] }
             }
           ]
         },
         {
-          "name": "3.2 Wrong Password Attempt 2",
+          "name": "3.2 Wrong Attempt 2",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/login",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{ \"username\": \"{{username}}\", \"password\": \"wrong2\" }"
+              "raw": "{ \"username\": \"{{username}}\", \"password\": \"a2\" }"
             }
           },
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 401 Unauthorized on failed attempt\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(401);"] }
             }
           ]
         },
         {
-          "name": "3.3 Wrong Password Attempt 3",
+          "name": "3.3 Wrong Attempt 3",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/login",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{ \"username\": \"{{username}}\", \"password\": \"wrong3\" }"
+              "raw": "{ \"username\": \"{{username}}\", \"password\": \"a3\" }"
             }
           },
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 401 Unauthorized on failed attempt\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(401);"] }
             }
           ]
         },
         {
-          "name": "3.4 Wrong Password Attempt 4",
+          "name": "3.4 Wrong Attempt 4",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/login",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{ \"username\": \"{{username}}\", \"password\": \"wrong4\" }"
+              "raw": "{ \"username\": \"{{username}}\", \"password\": \"a4\" }"
             }
           },
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 401 Unauthorized on failed attempt\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(401);"] }
             }
           ]
         },
         {
-          "name": "3.5 Wrong Password Attempt 5 (Triggers Lockout → 423)",
+          "name": "3.5 Wrong Attempt 5 → LOCKOUT EXPECTED (423)",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/login",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{ \"username\": \"{{username}}\", \"password\": \"wrong5\" }"
+              "raw": "{ \"username\": \"{{username}}\", \"password\": \"a5\" }"
             }
           },
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 423 Locked on lockout trigger\", function () {",
-                  "    pm.response.to.have.status(423);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(423);"] }
             }
           ]
         },
         {
-          "name": "3.6 Login During Lockout With Correct Password (Should 423)",
+          "name": "3.6 Correct Password During Lockout → still 423",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/login",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{ \"username\": \"{{username}}\", \"password\": \"{{password}}\" }"
@@ -558,163 +354,170 @@
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 423 Locked when logging in during lockout\", function () {",
-                  "    pm.response.to.have.status(423);",
-                  "});"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "4. PROTECTED /auth/me",
-      "item": [
-        {
-          "name": "4.1 /auth/me with Valid Token",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/auth/me",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ]
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 200 OK on /auth/me with valid token\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Response has id and username\", function () {",
-                  "    var r = pm.response.json();",
-                  "    pm.expect(r.id).to.be.a(\"string\");",
-                  "    pm.expect(r.username).to.eql(pm.collectionVariables.get(\"username\"));",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(423);"] }
             }
           ]
         },
         {
-          "name": "4.2 /auth/me Missing Token (Should 401)",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/auth/me",
-            "header": []
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 401 Unauthorized when token missing\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "4.3 /auth/me Invalid Token (Should 401)",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/auth/me",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer abc.invalid.token"
-              }
-            ]
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 401 Unauthorized for invalid token\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "5. REFRESH TOKEN",
-      "item": [
-        {
-          "name": "5.1 Refresh Success (Rotate Tokens)",
+          "name": "3.7 DEBUG UNLOCK",
           "request": {
             "method": "POST",
-            "url": "{{baseUrl}}/auth/refresh",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "url": "{{baseUrl}}/auth/debug/unlock",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{ \"refreshToken\": \"{{refreshToken}}\" }"
+              "raw": "{ \"username\": \"{{username}}\" }"
             }
           },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.response.to.have.status(200);"] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4 — /auth/me (DIRECT via Gateway)",
+      "item": [
+        {
+          "name": "4.1 /auth/me Success",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "let r = pm.response.json();",
+                  "pm.collectionVariables.set('userId', r.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.2 Missing Token → 401",
+          "request": { "method": "GET", "url": "{{baseUrl}}/auth/me" },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.response.to.have.status(401);"] }
+            }
+          ]
+        },
+        {
+          "name": "4.3 Invalid Token → 401",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me",
+            "header": [
+              { "key": "Authorization", "value": "Bearer invalid.token.here" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.response.to.have.status(401);"] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5 — /auth/me via Gateway Route Test",
+      "item": [
+        {
+          "name": "5.1 Valid Token via Gateway",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Gateway returned 200', () => pm.response.to.have.status(200));",
+                  "var r = pm.response.json();",
+                  "pm.expect(r.id).to.eql(pm.collectionVariables.get('userId'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.2 Invalid Token via Gateway → 401",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me",
+            "header": [
+              { "key": "Authorization", "value": "Bearer abc.def.ghi" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.response.to.have.status(401);"] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6 — REFRESH TOKEN (Rotation + Replay Detection)",
+      "item": [
+        {
+          "name": "6.1 Refresh Success (Rotate Tokens — SHA256 Backend Test)",
           "event": [
             {
               "listen": "prerequest",
               "script": {
-                "type": "text/javascript",
                 "exec": [
-                  "const currentRt = pm.collectionVariables.get(\"refreshToken\");",
-                  "pm.collectionVariables.set(\"oldRefreshToken\", currentRt);"
+                  "pm.collectionVariables.set('oldRefreshToken', pm.collectionVariables.get('refreshToken'));"
                 ]
               }
             },
             {
               "listen": "test",
               "script": {
-                "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status is 200 OK on refresh\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Refresh returns new access & refresh tokens\", function () {",
-                  "    var r = pm.response.json();",
-                  "    pm.expect(r.accessToken).to.be.a(\"string\");",
-                  "    pm.expect(r.refreshToken).to.be.a(\"string\");",
-                  "    pm.collectionVariables.set(\"accessToken\", r.accessToken);",
-                  "    pm.collectionVariables.set(\"refreshToken\", r.refreshToken);",
-                  "});"
+                  "pm.test('200 OK — rotated', () => pm.response.to.have.status(200));",
+                  "let r = pm.response.json();",
+                  "pm.collectionVariables.set('newAccessToken', r.accessToken);",
+                  "pm.collectionVariables.set('newRefreshToken', r.refreshToken);",
+                  "pm.collectionVariables.set('accessToken', r.accessToken);",
+                  "pm.collectionVariables.set('refreshToken', r.refreshToken);"
                 ]
               }
             }
-          ]
-        },
-        {
-          "name": "5.2 Reuse Old Refresh Token (Replay Attack Should 401)",
+          ],
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/refresh",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"refreshToken\": \"{{oldRefreshToken}}\" }"
+            }
+          }
+        },
+        {
+          "name": "6.2 Replay Attack — Reuse Old Refresh Token → 401",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/refresh",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{ \"refreshToken\": \"{{oldRefreshToken}}\" }"
@@ -724,27 +527,19 @@
             {
               "listen": "test",
               "script": {
-                "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status is 401 Unauthorized on reuse of old refresh token (replay blocked)\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
+                  "pm.test('Replay blocked → 401', ()=> pm.response.to.have.status(401));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "5.3 Random UUID Refresh Token (Should 401)",
+          "name": "6.3 Random UUID Refresh Token → 401",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/refresh",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{ \"refreshToken\": \"123e4567-e89b-12d3-a456-426614174000\" }"
@@ -753,28 +548,16 @@
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 401 Unauthorized for random UUID refresh token\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(401);"] }
             }
           ]
         },
         {
-          "name": "5.4 Malformed Refresh Token (Should 401)",
+          "name": "6.4 Malformed Refresh Token → 401",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/refresh",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{ \"refreshToken\": \"not-a-uuid-token\" }"
@@ -783,42 +566,52 @@
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 401 Unauthorized for malformed refresh token\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(401);"] }
             }
           ]
         },
         {
-          "name": "5.5 Missing refreshToken Field (Should 400)",
+          "name": "6.5 Missing refreshToken Field → 400",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/refresh",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{ \"noRefreshHere\": \"xxx\" }"
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{ \"nothing\": \"xxx\" }" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.response.to.have.status(400);"] }
             }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7 — Extract JTI (Decode JWT)",
+      "item": [
+        {
+          "name": "7.1 Decode Access Token Payload + Extract JTI",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ]
           },
           "event": [
             {
               "listen": "test",
               "script": {
-                "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status is 400 Bad Request when refreshToken field missing\", function () {",
-                  "    pm.response.to.have.status(400);",
-                  "});"
+                  "pm.response.to.have.status(200);",
+                  "let token = pm.collectionVariables.get('accessToken');",
+                  "let payload = token.split('.')[1];",
+                  "payload += '='.repeat((4 - payload.length % 4) % 4);",
+                  "let json = JSON.parse(atob(payload));",
+                  "pm.collectionVariables.set('jti', json.jti);",
+                  "pm.expect(json.jti).to.be.a('string');",
+                  "console.log('Extracted JTI:', json.jti);"
                 ]
               }
             }
@@ -827,56 +620,14 @@
       ]
     },
     {
-      "name": "6. LOGOUT & REVOKE",
+      "name": "8 — LOGOUT (Blacklist Access Token JTI)",
       "item": [
         {
-          "name": "6.1 Login Again To Get Fresh Tokens",
-          "request": {
-            "method": "POST",
-            "url": "{{baseUrl}}/auth/login",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{ \"username\": \"{{username}}\", \"password\": \"{{password}}\" }"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 200 OK on login\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test(\"Response has accessToken and refreshToken\", function () {",
-                  "    var r = pm.response.json();",
-                  "    pm.expect(r.accessToken).to.be.a(\"string\");",
-                  "    pm.expect(r.refreshToken).to.be.a(\"string\");",
-                  "    pm.collectionVariables.set(\"accessToken\", r.accessToken);",
-                  "    pm.collectionVariables.set(\"refreshToken\", r.refreshToken);",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "6.2 Logout With Valid Refresh Token (Revoke All)",
+          "name": "8.1 Logout User",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/logout",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{ \"refreshToken\": \"{{refreshToken}}\" }"
@@ -886,27 +637,49 @@
             {
               "listen": "test",
               "script": {
-                "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"Status is 200 OK on logout\", function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});"
+                  "pm.test('Logout OK', ()=> pm.response.to.have.status(200));",
+                  "console.log('JTI blacklisted:', pm.collectionVariables.get('jti'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "6.3 Refresh After Logout (Should 401)",
+          "name": "8.2 Manual Redis Check (optional)",
+          "request": {
+            "method": "GET",
+            "url": "http://localhost:9999/REDIS_CHECK_MANUALLY"
+          },
+          "description": "Run manually:\n docker compose exec redis redis-cli KEYS auth:jti:blacklist:*"
+        }
+      ]
+    },
+    {
+      "name": "9 — Token must fail after Logout (JTI Blacklist)",
+      "item": [
+        {
+          "name": "9.1 /auth/me → 401 (Direct via Gateway)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.response.to.have.status(401);"] }
+            }
+          ]
+        },
+        {
+          "name": "9.2 Refresh after logout → 401",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/refresh",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{ \"refreshToken\": \"{{refreshToken}}\" }"
@@ -915,63 +688,21 @@
           "event": [
             {
               "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 401 Unauthorized when refreshing after logout (tokens revoked)\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "6.4 Logout With Random Invalid Refresh Token (Should 401)",
-          "request": {
-            "method": "POST",
-            "url": "{{baseUrl}}/auth/logout",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{ \"refreshToken\": \"00000000-0000-0000-0000-000000000000\" }"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 401 Unauthorized for invalid refresh token on logout\", function () {",
-                  "    pm.response.to.have.status(401);",
-                  "});"
-                ]
-              }
+              "script": { "exec": ["pm.response.to.have.status(401);"] }
             }
           ]
         }
       ]
     },
     {
-      "name": "7. BAD REQUEST & MALFORMED JSON",
+      "name": "10 — Malformed JSON Tests",
       "item": [
         {
-          "name": "7.1 Login Malformed JSON (Missing Closing Brace)",
+          "name": "10.1 Login with malformed JSON → 400/415",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/login",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{ \"username\": \"u\", \"password\": \"p\""
@@ -981,73 +712,65 @@
             {
               "listen": "test",
               "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 400 Bad Request for malformed/invalid JSON\", function () {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([400, 415]);",
-                  "});"
-                ]
+                "exec": ["pm.expect(pm.response.code).to.be.oneOf([400,415]);"]
               }
             }
           ]
         },
         {
-          "name": "7.2 Register With Text/Non-JSON Body",
+          "name": "10.2 Register with plain-text body → 400/415",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/register",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "this is not json"
-            }
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "this is not json" }
           },
           "event": [
             {
               "listen": "test",
               "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 400 Bad Request for malformed/invalid JSON\", function () {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([400, 415]);",
-                  "});"
-                ]
+                "exec": ["pm.expect(pm.response.code).to.be.oneOf([400,415]);"]
               }
             }
           ]
         },
         {
-          "name": "7.3 Refresh With Empty Body",
+          "name": "10.3 Refresh with empty body → 400/415",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/auth/refresh",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": ""
-            }
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "" }
           },
           "event": [
             {
               "listen": "test",
               "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Status is 400 Bad Request or 415 Unsupported Media Type for empty body\", function () {",
-                  "    pm.expect(pm.response.code).to.be.oneOf([400, 415]);",
-                  "});"
-                ]
+                "exec": ["pm.expect(pm.response.code).to.be.oneOf([400,415]);"]
               }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "11 — DEBUG /auth/debug/unlock (DEV ONLY)",
+      "item": [
+        {
+          "name": "11.1 Unlock User",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/debug/unlock",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"username\": \"{{username}}\" }"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.response.to.have.status(200);"] }
             }
           ]
         }

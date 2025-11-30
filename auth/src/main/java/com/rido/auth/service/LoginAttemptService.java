@@ -15,21 +15,45 @@ public class LoginAttemptService {
     private final StringRedisTemplate redis;
     private final UserRepository userRepository;
 
+    private static final int MAX_ATTEMPTS = 5;
+    private static final Duration ATTEMPT_TTL = Duration.ofMinutes(15);
+    private static final Duration LOCK_DURATION = Duration.ofMinutes(30);
+
     public LoginAttemptService(StringRedisTemplate redis,
                                UserRepository userRepository) {
         this.redis = redis;
         this.userRepository = userRepository;
     }
 
+    // 🚫 CHECK BEFORE PASSWORD VALIDATION
     public void ensureNotLocked(String username) {
-        String lockedKey = "auth:login:locked:" + username;
 
-        String flag = redis.opsForValue().get(lockedKey);
-        if (flag != null) {
+        String lockedKey = "auth:login:locked:" + username;
+        String redisLock = redis.opsForValue().get(lockedKey);
+
+        // 1️⃣ If Redis says locked → locked
+        if (redisLock != null) {
             throw new AccountLockedException("Account locked due to too many failed attempts.");
         }
+
+        // 2️⃣ Check DB lock (hard lock)
+        userRepository.findByUsername(username).ifPresent(user -> {
+            Instant lockedUntil = user.getLockedUntil();
+
+            if (lockedUntil != null) {
+                // EXPIRED → auto-unlock
+                if (lockedUntil.isBefore(Instant.now())) {
+                    user.setLockedUntil(null);
+                    userRepository.save(user);
+                } else {
+                    // STILL ACTIVE → block login
+                    throw new AccountLockedException("Account locked until: " + lockedUntil);
+                }
+            }
+        });
     }
 
+    // ❌ FAILURE HANDLING
     public void onFailure(String username, String ip, UserEntity user) {
 
         String attemptsKey = "auth:login:attempts:" + username + ":" + ip;
@@ -37,22 +61,25 @@ public class LoginAttemptService {
         Long attempts = redis.opsForValue().increment(attemptsKey);
 
         if (attempts == 1) {
-            redis.expire(attemptsKey, Duration.ofMinutes(15));
+            redis.expire(attemptsKey, ATTEMPT_TTL);
         }
 
-        if (attempts > 5) {
-            redis.opsForValue().set("auth:login:locked:" + username, "1",
-                    Duration.ofMinutes(30));
+        if (attempts != null && attempts > MAX_ATTEMPTS) {
 
+            // Redis lock
+            redis.opsForValue().set("auth:login:locked:" + username, "1", LOCK_DURATION);
+
+            // DB lock
             if (user != null) {
-                user.setLockedUntil(Instant.now().plusSeconds(30 * 60));
+                user.setLockedUntil(Instant.now().plus(LOCK_DURATION));
                 userRepository.save(user);
             }
 
-            throw new AccountLockedException("Too many failed attempts. Locked 30 minutes.");
+            throw new AccountLockedException("Account locked due to too many failed attempts.");
         }
     }
 
+    // ✅ CLEAR LOCK ON SUCCESSFUL LOGIN
     public void onSuccess(String username, String ip, UserEntity user) {
         redis.delete("auth:login:attempts:" + username + ":" + ip);
         redis.delete("auth:login:locked:" + username);
@@ -60,22 +87,18 @@ public class LoginAttemptService {
         user.setLockedUntil(null);
         userRepository.save(user);
     }
-     // 🔥 TEST-ONLY UNLOCK (correct)
+
+    // 🧪 TEST UTILITY
     public void resetFailures(String username) {
 
-        // 1) Delete ALL possible attempts keys (IP varies)
-        // pattern delete
         redis.keys("auth:login:attempts:" + username + ":*")
                 .forEach(redis::delete);
 
-        // 2) Delete lock key
         redis.delete("auth:login:locked:" + username);
 
-        // 3) Reset DB lock
         userRepository.findByUsername(username).ifPresent(u -> {
             u.setLockedUntil(null);
             userRepository.save(u);
         });
     }
-
 }

@@ -10,14 +10,22 @@ management:
 server:
   port: 8080
 
+# ============================
+# JWT CONFIG
+# ============================
 jwt:
-  secret: ${JWT_SECRET:myUltraSecureJwtSecret_2025_XYZ_!@#_DoNotShare_9876543210}
+  secret: ${JWT_SECRET}
 
 spring:
+  data:
+    redis:
+      host: redis
+      port: 6379
+
   cloud:
     gateway:
       default-filters:
-        - JwtAuthFilter
+        - name: JwtAuthFilter
 
       routes:
         - id: auth-service

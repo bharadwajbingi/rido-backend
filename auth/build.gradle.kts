@@ -64,6 +64,9 @@ implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
     // ----------------------------
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 
+    implementation("net.logstash.logback:logstash-logback-encoder:7.4")
+
+
 }
 
 tasks.withType<Test> {

@@ -11,4 +11,9 @@ public class LoginRequest {
 
     @NotBlank(message = "Password cannot be empty")
     private String password;
+
+    // OPTIONAL BUT NEEDED FOR SESSION TRACKING
+    private String deviceId;
+    private String ip;
+    private String userAgent;
 }

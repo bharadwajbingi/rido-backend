@@ -66,7 +66,7 @@ services:
       REDIS_PORT: 6379
 
       # JWT (PLAIN TEXT SECRET)
-      JWT_SECRET: myUltraSecureJwtSecret_2025_XYZ_!@#_DoNotShare_9876543210
+      JWT_SECRET: 5906946b169aa373a19f4a48ba8011568f94e8290d4c30c1d0f94eacd3c02e96
       JWT_ACCESS_TTL: 300
       JWT_REFRESH_TTL: 1209600
 
@@ -83,7 +83,7 @@ services:
         condition: service_started
     environment:
       # Same JWT secret as Auth
-      JWT_SECRET: myUltraSecureJwtSecret_2025_XYZ_!@#_DoNotShare_9876543210
+      JWT_SECRET: 5906946b169aa373a19f4a48ba8011568f94e8290d4c30c1d0f94eacd3c02e96
 
     ports:
       - "8080:8080"
