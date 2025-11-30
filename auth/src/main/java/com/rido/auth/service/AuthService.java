@@ -3,12 +3,7 @@ package com.rido.auth.service;
 import com.rido.auth.config.JwtConfig;
 import com.rido.auth.crypto.JwtKeyStore;
 import com.rido.auth.dto.TokenResponse;
-import com.rido.auth.exception.AccountLockedException;
-import com.rido.auth.exception.InvalidCredentialsException;
-import com.rido.auth.exception.UsernameAlreadyExistsException;
-import com.rido.auth.exception.TokenExpiredException;
-import com.rido.auth.exception.ReplayDetectedException;
-
+import com.rido.auth.exception.*;
 import com.rido.auth.model.RefreshTokenEntity;
 import com.rido.auth.model.UserEntity;
 import com.rido.auth.repo.RefreshTokenRepository;
@@ -26,7 +21,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.MeterRegistry;
+
+import io.opentelemetry.api.trace.Span;
 
 import static net.logstash.logback.argument.StructuredArguments.kv;
 
@@ -54,11 +52,15 @@ public class AuthService {
     private final int maxFailedAttempts;
     private final long lockoutDurationSeconds;
 
-    // micrometer
+    // Micrometer metrics
     private final Counter loginSuccessCounter;
     private final Counter loginFailureCounter;
     private final Counter refreshSuccessCounter;
     private final Counter refreshReplayCounter;
+    private final Counter loginLockoutCounter;
+    private final Counter logoutSuccessCounter;
+
+    private final Timer requestTimer;   // ⬅ REQUIRED FOR PHASE-2
 
     public AuthService(
             UserRepository userRepository,
@@ -87,8 +89,12 @@ public class AuthService {
 
         this.loginSuccessCounter = registry.counter("auth.login.success");
         this.loginFailureCounter = registry.counter("auth.login.failure");
-        this.refreshSuccessCounter = registry.counter("auth.refresh.success");
+        this.refreshSuccessCounter = registry.counter("auth.refresh.ok");
         this.refreshReplayCounter = registry.counter("auth.refresh.replay");
+        this.loginLockoutCounter = registry.counter("auth.login.lockout");
+        this.logoutSuccessCounter = registry.counter("auth.logout.ok");
+
+        this.requestTimer = registry.timer("auth.request.duration");  // ⬅ ADDED
     }
 
     // ============================================================
@@ -134,6 +140,7 @@ public class AuthService {
 
         if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now())) {
             loginFailureCounter.increment();
+            loginLockoutCounter.increment();
             throw new AccountLockedException("Account locked until: " + user.getLockedUntil());
         }
 
@@ -146,11 +153,15 @@ public class AuthService {
         loginAttemptService.onSuccess(username, ip, user);
         loginSuccessCounter.increment();
 
-        return createTokens(user.getId(), deviceId, ip, userAgent);
+        tagCurrentSpan(user.getId(), deviceId, ip, null);
+
+        return requestTimer.record(() ->
+                createTokens(user.getId(), deviceId, ip, userAgent)
+        );
     }
 
     // ============================================================
-    // REFRESH — ROTATION + REPLAY DETECTION
+    // REFRESH (ROTATION + REPLAY DETECTION)
     // ============================================================
     public TokenResponse refresh(String refreshToken, String deviceId, String ip) {
 
@@ -159,7 +170,8 @@ public class AuthService {
         RefreshTokenEntity rt = refreshTokenRepository.findByTokenHash(hash)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
 
-        // ===== NEW: REPLAY DETECTION EXCEPTION =====
+        tagCurrentSpan(rt.getUserId(), rt.getDeviceId(), rt.getIp(), rt.getJti());
+
         if (rt.isRevoked()) {
             log.error("auth_refresh_replay_detected", kv("userId", rt.getUserId()));
             refreshReplayCounter.increment();
@@ -169,7 +181,6 @@ public class AuthService {
 
         Instant now = refreshTokenRepository.getDatabaseTime();
 
-        // ===== NEW: TOKEN EXPIRED EXCEPTION =====
         if (rt.getExpiresAt().minusSeconds(5).isBefore(now)) {
             log.warn("auth_refresh_expired", kv("userId", rt.getUserId()));
             refreshReplayCounter.increment();
@@ -177,16 +188,16 @@ public class AuthService {
             throw new TokenExpiredException("Refresh token expired");
         }
 
-        // rotation
         rt.setRevoked(true);
         refreshTokenRepository.save(rt);
-
         refreshSuccessCounter.increment();
 
         String finalDevice = rt.getDeviceId() != null ? rt.getDeviceId() : deviceId;
         String finalIp = rt.getIp() != null ? rt.getIp() : ip;
 
-        return createTokens(rt.getUserId(), finalDevice, finalIp, rt.getUserAgent());
+        return requestTimer.record(() ->
+                createTokens(rt.getUserId(), finalDevice, finalIp, rt.getUserAgent())
+        );
     }
 
     // ============================================================
@@ -209,8 +220,13 @@ public class AuthService {
         if (rt.isRevoked())
             throw new InvalidCredentialsException("Refresh token already revoked");
 
-        rt.setRevoked(true);
-        refreshTokenRepository.save(rt);
+        tagCurrentSpan(rt.getUserId(), rt.getDeviceId(), rt.getIp(), rt.getJti());
+
+        requestTimer.record(() -> {
+            rt.setRevoked(true);
+            refreshTokenRepository.save(rt);
+            logoutSuccessCounter.increment();
+        });
     }
 
     // ============================================================
@@ -225,7 +241,7 @@ public class AuthService {
         PrivateKey privateKey = keyPair.getPrivate();
         String kid = keyStore.getCurrentKid();
 
-        // Access token — RS256
+        // Create access token
         String accessToken = Jwts.builder()
                 .setHeaderParam("kid", kid)
                 .setHeaderParam("typ", "JWT")
@@ -236,7 +252,7 @@ public class AuthService {
                 .signWith(privateKey, SignatureAlgorithm.RS256)
                 .compact();
 
-        // Refresh token — opaque UUID + sha256 hash
+        // Opaque refresh token
         String refreshPlain = UUID.randomUUID().toString();
         String refreshHash = HashUtils.sha256(refreshPlain);
 
@@ -253,5 +269,18 @@ public class AuthService {
         refreshTokenRepository.save(rt);
 
         return new TokenResponse(accessToken, refreshPlain, accessTtlSeconds);
+    }
+
+    // ============================================================
+    // TRACE TAGGING
+    // ============================================================
+    private void tagCurrentSpan(UUID userId, String deviceId, String ip, UUID jti) {
+        Span span = Span.current();
+        if (!span.getSpanContext().isValid()) return;
+
+        if (userId != null) span.setAttribute("auth.user_id", userId.toString());
+        if (deviceId != null) span.setAttribute("auth.device_id", deviceId);
+        if (ip != null) span.setAttribute("auth.ip", ip);
+        if (jti != null) span.setAttribute("auth.jti", jti.toString());
     }
 }

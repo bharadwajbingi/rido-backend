@@ -6,6 +6,14 @@ management:
   endpoint:
     health:
       show-details: always
+    prometheus:
+      enabled: true
+    metrics:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
 
 server:
   port: 8080

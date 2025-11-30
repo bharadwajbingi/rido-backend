@@ -67,6 +67,8 @@ implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
     implementation("net.logstash.logback:logstash-logback-encoder:7.4")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("io.micrometer:micrometer-registry-prometheus")
+    implementation("io.opentelemetry:opentelemetry-api:1.41.0")
+
 
 
 

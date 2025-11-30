@@ -1,6 +1,9 @@
 version: "3.9"
 
 services:
+  # ===========================
+  # POSTGRES
+  # ===========================
   postgres:
     image: postgres:15
     environment:
@@ -17,6 +20,9 @@ services:
     networks:
       - rido-net
 
+  # ===========================
+  # REDIS
+  # ===========================
   redis:
     image: redis:7
     command: ["redis-server", "--save", "", "--appendonly", "no"]
@@ -25,6 +31,9 @@ services:
     networks:
       - rido-net
 
+  # ===========================
+  # AUTH SERVICE
+  # ===========================
   auth:
     build:
       context: ../auth
@@ -45,12 +54,26 @@ services:
       REDIS_PORT: 6379
       JWT_REFRESH_TTL: 20
 
-      # ❌ REMOVE JWT_SECRET – auth now uses RSA KeyStore
+      # ===========================
+      # 🔥 OPEN TELEMETRY AGENT
+      # ===========================
+      JAVA_TOOL_OPTIONS: "-javaagent:/otel/opentelemetry-javaagent.jar"
+      OTEL_SERVICE_NAME: "auth-service"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4317"
+      OTEL_TRACES_EXPORTER: "otlp"
+      OTEL_METRICS_EXPORTER: "none"
+
+    volumes:
+      - ./otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar
+
     ports:
       - "8081:8081"
     networks:
       - rido-net
 
+  # ===========================
+  # GATEWAY SERVICE
+  # ===========================
   gateway:
     build:
       context: ../gateway
@@ -60,14 +83,40 @@ services:
         condition: service_started
     environment:
       SPRING_MAIN_ALLOW_BEAN_DEFINITION_OVERRIDING: "true"
-
-      # 🔥 Gateway loads JWKS, not secret
       JWKS_URL: http://auth:8081/auth/keys/jwks.json
+
     ports:
       - "8080:8080"
     networks:
       - rido-net
 
+  # ===========================
+  # PROMETHEUS
+  # ===========================
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - rido-net
+
+  # ===========================
+  # GRAFANA
+  # ===========================
+  grafana:
+    image: grafana/grafana:latest
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    networks:
+      - rido-net
+
+# ===========================
+# VOLUMES & NETWORKS
+# ===========================
 volumes:
   pgdata:
 

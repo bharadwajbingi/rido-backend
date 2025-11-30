@@ -25,4 +25,6 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity
     void revokeAllForUser(@Param("userId") UUID userId);
     List<RefreshTokenEntity> findByUserIdAndRevokedFalse(UUID userId);
 
+    long countByRevokedFalse();
+
 }

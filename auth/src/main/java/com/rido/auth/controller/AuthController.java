@@ -13,6 +13,7 @@ import com.rido.auth.rate.RateLimiterService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import io.micrometer.core.annotation.Timed;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +26,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/auth")
+@Timed(value = "auth.request.duration", extraTags = { "module", "auth" })
 public class AuthController {
 
     private final AuthService authService;
