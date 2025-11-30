@@ -1,42 +1,56 @@
 package com.rido.gateway.security
 
-import io.jsonwebtoken.Claims
+import com.rido.gateway.crypto.JwtKeyResolver
 import io.jsonwebtoken.Jwts
-import io.jsonwebtoken.security.Keys
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.beans.factory.annotation.Qualifier
-import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Mono
-import java.nio.charset.StandardCharsets
+import java.security.PublicKey
 
 @Component
 class JwtValidator(
-    @Value("\${jwt.secret}") private val jwtSecret: String,
-
-    @Qualifier("reactiveStringRedisTemplate")
-    private val redis: ReactiveStringRedisTemplate
+    private val keyResolver: JwtKeyResolver
 ) {
 
-    fun validateAndGetClaims(token: String): Mono<Claims> {
+    fun validate(token: String): Mono<Map<String, Any>> {
+        return try {
 
-        val signingKey = Keys.hmacShaKeyFor(jwtSecret.toByteArray(StandardCharsets.UTF_8))
+            // ==========================================
+            // 1️⃣ Parse header to extract KID
+            // ==========================================
+            val header = Jwts.parserBuilder()
+                .build()
+                .parseClaimsJwt(token)
+                .header
 
-        return redis.hasKey("auth:jti:blacklist:$token")
-            .flatMap { isBlacklisted ->
+            val kid = header["kid"] as String?
 
-                if (isBlacklisted) {
-                    return@flatMap Mono.error<Claims>(RuntimeException("Token blacklisted"))
-                }
+                ?: return Mono.error(RuntimeException("missing kid"))
 
-                // Parse JWT
-                return@flatMap Mono.fromCallable {
-                    Jwts.parserBuilder()
-                        .setSigningKey(signingKey)
-                        .build()
-                        .parseClaimsJws(token)
-                        .body
-                }
-            }
+            // ==========================================
+            // 2️⃣ Resolve RSA Public Key using JWKS / Cache
+            // ==========================================
+            val publicKey: PublicKey = keyResolver.resolve(kid)
+                ?: return Mono.error(RuntimeException("unknown kid"))
+
+            // ==========================================
+            // 3️⃣ Parse RS256 JWT with correct key
+            // ==========================================
+            val claims = Jwts.parserBuilder()
+                .setSigningKey(publicKey)
+                .build()
+                .parseClaimsJws(token)
+                .body
+
+            val result = mapOf(
+                "userId" to claims.subject,
+                "jti" to claims.id,
+                "exp" to claims.expiration.time
+            )
+
+            Mono.just(result)
+
+        } catch (e: Exception) {
+            Mono.error(e)
+        }
     }
 }

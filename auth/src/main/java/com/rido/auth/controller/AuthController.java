@@ -1,5 +1,8 @@
 package com.rido.auth.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Base64;
+
 import com.rido.auth.config.JwtConfig;
 import com.rido.auth.dto.LoginRequest;
 import com.rido.auth.dto.LogoutRequest;
@@ -14,10 +17,8 @@ import com.rido.auth.model.UserEntity;
 import com.rido.auth.repo.RefreshTokenRepository;
 import com.rido.auth.repo.UserRepository;
 import com.rido.auth.service.AuthService;
+import com.rido.auth.crypto.JwtKeyStore;
 import com.rido.auth.service.TokenBlacklistService;
-
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -27,7 +28,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.nio.charset.StandardCharsets;
+import java.security.PublicKey;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -40,21 +41,21 @@ public class AuthController {
     private final UserRepository userRepository;
     private final TokenBlacklistService tokenBlacklistService;
     private final RefreshTokenRepository refreshTokenRepository;
-
-    private final String jwtSecret;
+    private final JwtKeyStore keyStore;
 
     public AuthController(
             AuthService authService,
             UserRepository userRepository,
             JwtConfig jwtConfig,
             TokenBlacklistService tokenBlacklistService,
-            RefreshTokenRepository refreshTokenRepository
+            RefreshTokenRepository refreshTokenRepository,
+            JwtKeyStore keyStore
     ) {
         this.authService = authService;
         this.userRepository = userRepository;
-        this.jwtSecret = jwtConfig.secret();
         this.tokenBlacklistService = tokenBlacklistService;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.keyStore = keyStore;
     }
 
     // =========================
@@ -135,13 +136,11 @@ public class AuthController {
             String ip = request.getRemoteAddr();
             String deviceId = request.getHeader("X-Device-Id");
 
-            // Perform refresh rotation
             TokenResponse resp = authService.refresh(refresh, deviceId, ip);
 
-            // Blacklist old access token if provided
-            if (oldAccessToken != null && !oldAccessToken.isBlank()) {
-                tokenBlacklistService.blacklist(oldAccessToken);
-            }
+            // if (oldAccessToken != null && !oldAccessToken.isBlank()) {
+            //     tokenBlacklistService.blacklist(oldAccessToken);
+            // }
 
             return ResponseEntity.ok(resp);
 
@@ -189,48 +188,24 @@ public class AuthController {
     }
 
     // =========================
-    // /me endpoint
+    // FIXED /me ENDPOINT
     // =========================
     @GetMapping("/me")
     public ResponseEntity<?> me(
-            @RequestHeader(name = "Authorization", required = false) String auth
+            @RequestHeader(name = "X-User-ID", required = false) String userId
     ) {
-        try {
-            if (auth == null || !auth.startsWith("Bearer ")) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(Map.of("error", "missing token"));
-            }
-
-            String token = auth.substring(7);
-
-            var key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
-
-            var claims = Jwts.parserBuilder()
-                    .setSigningKey(key)
-                    .build()
-                    .parseClaimsJws(token)
-                    .getBody();
-
-            String jti = claims.getId();
-            if (jti != null && tokenBlacklistService.isBlacklisted(jti)) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(Map.of("error", "token revoked"));
-            }
-
-            UUID userId = UUID.fromString(claims.getSubject());
-
-            return userRepository.findById(userId)
-                    .map(u -> ResponseEntity.ok(Map.of(
-                            "id", u.getId().toString(),
-                            "username", u.getUsername()
-                    )))
-                    .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
-                            .body(Map.of("error", "user not found")));
-
-        } catch (Exception ex) {
+        if (userId == null || userId.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "invalid token"));
+                    .body(Map.of("error", "Unauthorized"));
         }
+
+        return userRepository.findById(UUID.fromString(userId))
+                .map(u -> ResponseEntity.ok(Map.of(
+                        "id", u.getId().toString(),
+                        "username", u.getUsername()
+                )))
+                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "user not found")));
     }
 
     // =========================

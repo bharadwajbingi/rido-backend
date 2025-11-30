@@ -1,6 +1,7 @@
 package com.rido.auth.service;
 
 import com.rido.auth.config.JwtConfig;
+import com.rido.auth.crypto.JwtKeyStore;
 import com.rido.auth.dto.TokenResponse;
 import com.rido.auth.exception.AccountLockedException;
 import com.rido.auth.exception.InvalidCredentialsException;
@@ -13,15 +14,20 @@ import com.rido.auth.util.HashUtils;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.security.Keys;
 
-import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.Key;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
+import java.security.PrivateKey;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Optional;
@@ -30,20 +36,26 @@ import java.util.UUID;
 @Service
 public class AuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final LoginAttemptService loginAttemptService;
     private final TokenBlacklistService tokenBlacklistService;
+    private final JwtKeyStore keyStore;
 
-    private final String jwtSecret;
     private final long accessTtlSeconds;
     private final long refreshTtlSeconds;
 
     private final int maxFailedAttempts;
     private final long lockoutDurationSeconds;
 
-    private Key signingKey;
+    // micrometer
+    private final Counter loginSuccessCounter;
+    private final Counter loginFailureCounter;
+    private final Counter refreshSuccessCounter;
+    private final Counter refreshReplayCounter;
 
     public AuthService(
             UserRepository userRepository,
@@ -53,26 +65,27 @@ public class AuthService {
             JwtConfig jwtConfig,
             @Value("${auth.login.max-failed-attempts:5}") int maxFailedAttempts,
             @Value("${auth.login.lockout-duration-seconds:300}") long lockoutDurationSeconds,
-            TokenBlacklistService tokenBlacklistService
+            TokenBlacklistService tokenBlacklistService,
+            JwtKeyStore keyStore,
+            MeterRegistry registry
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.loginAttemptService = loginAttemptService;
+        this.tokenBlacklistService = tokenBlacklistService;
+        this.keyStore = keyStore;
 
-        this.jwtSecret = jwtConfig.secret();
         this.accessTtlSeconds = jwtConfig.accessTokenTtlSeconds();
         this.refreshTtlSeconds = jwtConfig.refreshTokenTtlSeconds();
 
         this.maxFailedAttempts = maxFailedAttempts;
         this.lockoutDurationSeconds = lockoutDurationSeconds;
 
-        this.tokenBlacklistService = tokenBlacklistService;
-    }
-
-    @PostConstruct
-    public void init() {
-        this.signingKey = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        this.loginSuccessCounter = registry.counter("auth.login.success");
+        this.loginFailureCounter = registry.counter("auth.login.failure");
+        this.refreshSuccessCounter = registry.counter("auth.refresh.success");
+        this.refreshReplayCounter = registry.counter("auth.refresh.replay");
     }
 
     // ============================================================
@@ -80,17 +93,24 @@ public class AuthService {
     // ============================================================
     public void register(String username, String password) {
 
+        log.info("auth_register_attempt", kv("username", username));
+
         userRepository.findByUsername(username)
                 .ifPresent(u -> {
+                    log.warn("auth_register_failed",
+                            kv("username", username),
+                            kv("reason", "username_taken"));
                     throw new UsernameAlreadyExistsException("Username already exists");
                 });
 
         UserEntity user = new UserEntity();
         user.setUsername(username);
-        user.setPasswordHash(passwordEncoder.encode(password)); // Argon2id
+        user.setPasswordHash(passwordEncoder.encode(password));
         user.setRole("user");
 
         userRepository.save(user);
+
+        log.info("auth_register_success", kv("username", username));
     }
 
     // ============================================================
@@ -102,6 +122,7 @@ public class AuthService {
 
         Optional<UserEntity> userOpt = userRepository.findByUsername(username);
         if (userOpt.isEmpty()) {
+            loginFailureCounter.increment();
             loginAttemptService.onFailure(username, ip, null);
             throw new InvalidCredentialsException("Invalid credentials");
         }
@@ -109,21 +130,24 @@ public class AuthService {
         UserEntity user = userOpt.get();
 
         if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now())) {
+            loginFailureCounter.increment();
             throw new AccountLockedException("Account locked until: " + user.getLockedUntil());
         }
 
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+            loginFailureCounter.increment();
             loginAttemptService.onFailure(username, ip, user);
             throw new InvalidCredentialsException("Invalid credentials");
         }
 
         loginAttemptService.onSuccess(username, ip, user);
+        loginSuccessCounter.increment();
 
         return createTokens(user.getId(), deviceId, ip, userAgent);
     }
 
     // ============================================================
-    // REFRESH TOKEN ROTATION
+    // REFRESH — ROTATION + REPLAY DETECTION
     // ============================================================
     public TokenResponse refresh(String refreshToken, String deviceId, String ip) {
 
@@ -132,31 +156,29 @@ public class AuthService {
         RefreshTokenEntity rt = refreshTokenRepository.findByTokenHash(hash)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
 
-        // replay detection
         if (rt.isRevoked()) {
+            refreshReplayCounter.increment();
             refreshTokenRepository.revokeAllForUser(rt.getUserId());
             throw new InvalidCredentialsException("Refresh token revoked");
         }
 
-        // expiry check using DB clock
         Instant now = refreshTokenRepository.getDatabaseTime();
-        Instant expCheck = rt.getExpiresAt().minusSeconds(5);
-
-        if (expCheck.isBefore(now)) {
+        if (rt.getExpiresAt().minusSeconds(5).isBefore(now)) {
+            refreshReplayCounter.increment();
             refreshTokenRepository.revokeAllForUser(rt.getUserId());
             throw new InvalidCredentialsException("Refresh token expired");
         }
 
-        // invalidate old token
+        // rotation
         rt.setRevoked(true);
         refreshTokenRepository.save(rt);
 
-        // reuse stored session metadata
-        String userAgent = rt.getUserAgent();
-        String finalDeviceId = (rt.getDeviceId() != null ? rt.getDeviceId() : deviceId);
-        String finalIp = (rt.getIp() != null ? rt.getIp() : ip);
+        refreshSuccessCounter.increment();
 
-        return createTokens(rt.getUserId(), finalDeviceId, finalIp, userAgent);
+        String finalDevice = rt.getDeviceId() != null ? rt.getDeviceId() : deviceId;
+        String finalIp = rt.getIp() != null ? rt.getIp() : ip;
+
+        return createTokens(rt.getUserId(), finalDevice, finalIp, rt.getUserAgent());
     }
 
     // ============================================================
@@ -173,7 +195,6 @@ public class AuthService {
         tokenBlacklistService.blacklist(accessToken);
 
         String hash = HashUtils.sha256(refreshToken);
-
         RefreshTokenEntity rt = refreshTokenRepository.findByTokenHash(hash)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
 
@@ -185,31 +206,36 @@ public class AuthService {
     }
 
     // ============================================================
-    // INTERNAL TOKEN CREATION
+    // CREATE TOKENS — RS256 + KID
     // ============================================================
     private TokenResponse createTokens(UUID userId, String deviceId, String ip, String userAgent) {
 
         Instant now = Instant.now();
-
-        // access token with JTI
         Instant accessExp = now.plusSeconds(accessTtlSeconds);
+
+        var keyPair = keyStore.getCurrentKeyPair();
+        PrivateKey privateKey = keyPair.getPrivate();
+        String kid = keyStore.getCurrentKid();
+
+        // Access token — RS256
         String accessToken = Jwts.builder()
+                .setHeaderParam("kid", kid)
+                .setHeaderParam("typ", "JWT")
                 .setSubject(userId.toString())
-                .setId(UUID.randomUUID().toString()) // JTI
+                .setId(UUID.randomUUID().toString())
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(accessExp))
-                .signWith(signingKey, SignatureAlgorithm.HS256)
+                .signWith(privateKey, SignatureAlgorithm.RS256)
                 .compact();
 
-        // refresh token
-        String refreshToken = UUID.randomUUID().toString();
-        String refreshHash = HashUtils.sha256(refreshToken);
-        Instant refreshExp = now.plusSeconds(refreshTtlSeconds);
+        // Refresh token — opaque UUID + sha256 hash
+        String refreshPlain = UUID.randomUUID().toString();
+        String refreshHash = HashUtils.sha256(refreshPlain);
 
         RefreshTokenEntity rt = new RefreshTokenEntity();
         rt.setUserId(userId);
         rt.setTokenHash(refreshHash);
-        rt.setExpiresAt(refreshExp);
+        rt.setExpiresAt(now.plusSeconds(refreshTtlSeconds));
         rt.setRevoked(false);
         rt.setDeviceId(deviceId);
         rt.setIp(ip);
@@ -218,6 +244,6 @@ public class AuthService {
 
         refreshTokenRepository.save(rt);
 
-        return new TokenResponse(accessToken, refreshToken, accessTtlSeconds);
+        return new TokenResponse(accessToken, refreshPlain, accessTtlSeconds);
     }
 }

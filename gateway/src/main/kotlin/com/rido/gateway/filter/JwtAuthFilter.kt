@@ -1,9 +1,8 @@
 package com.rido.gateway.filter
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.rido.gateway.crypto.JwtKeyResolver
 import io.jsonwebtoken.Jwts
-import io.jsonwebtoken.security.Keys
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.cloud.gateway.filter.GatewayFilter
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
@@ -11,15 +10,12 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Mono
-import java.nio.charset.StandardCharsets
+import java.util.*
 
 @Component("JwtAuthFilter")
 class JwtAuthFilter(
-    @Value("\${jwt.secret}") private val jwtSecret: String,
-
-    @Qualifier("reactiveStringRedisTemplate")
-    private val redis: ReactiveStringRedisTemplate
-
+    private val redis: ReactiveStringRedisTemplate,
+    private val keyResolver: JwtKeyResolver
 ) : AbstractGatewayFilterFactory<JwtAuthFilter.Config>(Config::class.java) {
 
     class Config
@@ -29,23 +25,53 @@ class JwtAuthFilter(
 
             val path = exchange.request.path.toString()
 
-            // Public routes
+            // Publicly allowed endpoints
             if (path.startsWith("/auth/login") ||
                 path.startsWith("/auth/register") ||
-                path.startsWith("/auth/refresh") || 
-                path.startsWith("/auth/debug/unlock")
+                path.startsWith("/auth/refresh") ||
+                path.startsWith("/auth/logout") ||
+                path.startsWith("/auth/keys") ||
+                path.startsWith("/auth/.well-known")
             ) {
                 return@GatewayFilter chain.filter(exchange)
             }
 
+            // Extract Bearer token
             val token = extractToken(exchange.request.headers)
                 ?: return@GatewayFilter unauthorized(exchange)
 
-            val signingKey = Keys.hmacShaKeyFor(jwtSecret.toByteArray(StandardCharsets.UTF_8))
+            // ============================
+            // 1️⃣ Extract header manually
+            // ============================
+            val parts = token.split(".")
+            if (parts.size != 3) return@GatewayFilter unauthorized(exchange)
 
+            val headerJson = try {
+                String(Base64.getUrlDecoder().decode(parts[0]))
+            } catch (e: Exception) {
+                return@GatewayFilter unauthorized(exchange)
+            }
+
+            val header: Map<String, Any?> = try {
+                ObjectMapper().readValue(headerJson, Map::class.java) as Map<String, Any?>
+            } catch (e: Exception) {
+                return@GatewayFilter unauthorized(exchange)
+            }
+
+            val kid = header["kid"] as? String ?: return@GatewayFilter unauthorized(exchange)
+
+            // ============================
+            // 2️⃣ Resolve RSA public key
+            // ============================
+            val publicKey = keyResolver.resolve(kid)
+                ?: return@GatewayFilter unauthorized(exchange)
+
+            // ============================
+            // 3️⃣ Parse + verify RS256
+            // ============================
             val claims = try {
                 Jwts.parserBuilder()
-                    .setSigningKey(signingKey)
+                    .setSigningKey(publicKey)
                     .build()
                     .parseClaimsJws(token)
                     .body
@@ -56,6 +82,9 @@ class JwtAuthFilter(
             val jti = claims.id ?: return@GatewayFilter unauthorized(exchange)
             val userId = claims.subject ?: return@GatewayFilter unauthorized(exchange)
 
+            // ============================
+            // 4️⃣ Redis JTI blacklist check
+            // ============================
             redis.hasKey("auth:jti:blacklist:$jti")
                 .flatMap { isBlacklisted ->
                     if (isBlacklisted) {
@@ -63,6 +92,7 @@ class JwtAuthFilter(
                         return@flatMap exchange.response.setComplete()
                     }
 
+                    // Add X-User-ID for downstream services
                     val mutated = exchange.mutate()
                         .request { it.header("X-User-ID", userId) }
                         .build()
