@@ -1,6 +1,14 @@
 version: "3.9"
 
 services:
+  tempo:
+    image: grafana/tempo:latest
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "3100:3100" # HTTP
+    networks:
+      - rido-net
+
   # ===========================
   # POSTGRES
   # ===========================
@@ -52,7 +60,7 @@ services:
 
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      JWT_REFRESH_TTL: 20
+      JWT_REFRESH_TTL: 300
 
       # ===========================
       # 🔥 OPEN TELEMETRY AGENT

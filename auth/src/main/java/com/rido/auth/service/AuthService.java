@@ -52,15 +52,14 @@ public class AuthService {
     private final int maxFailedAttempts;
     private final long lockoutDurationSeconds;
 
-    // Micrometer metrics
+    // Micrometer
     private final Counter loginSuccessCounter;
     private final Counter loginFailureCounter;
     private final Counter refreshSuccessCounter;
     private final Counter refreshReplayCounter;
     private final Counter loginLockoutCounter;
     private final Counter logoutSuccessCounter;
-
-    private final Timer requestTimer;   // ⬅ REQUIRED FOR PHASE-2
+    private final Timer requestTimer;
 
     public AuthService(
             UserRepository userRepository,
@@ -87,19 +86,18 @@ public class AuthService {
         this.maxFailedAttempts = maxFailedAttempts;
         this.lockoutDurationSeconds = lockoutDurationSeconds;
 
-        this.loginSuccessCounter = registry.counter("auth.login.success");
-        this.loginFailureCounter = registry.counter("auth.login.failure");
-        this.refreshSuccessCounter = registry.counter("auth.refresh.ok");
-        this.refreshReplayCounter = registry.counter("auth.refresh.replay");
-        this.loginLockoutCounter = registry.counter("auth.login.lockout");
-        this.logoutSuccessCounter = registry.counter("auth.logout.ok");
-
-        this.requestTimer = registry.timer("auth.request.duration");  // ⬅ ADDED
+        loginSuccessCounter    = registry.counter("auth.login.success");
+        loginFailureCounter    = registry.counter("auth.login.failure");
+        refreshSuccessCounter  = registry.counter("auth.refresh.ok");
+        refreshReplayCounter   = registry.counter("auth.refresh.replay");
+        loginLockoutCounter    = registry.counter("auth.login.lockout");
+        logoutSuccessCounter   = registry.counter("auth.logout.ok");
+        requestTimer           = registry.timer("auth.request.duration");
     }
 
-    // ============================================================
+    // ==========================================================================================
     // REGISTER
-    // ============================================================
+    // ==========================================================================================
     public void register(String username, String password) {
 
         log.info("auth_register_attempt", kv("username", username));
@@ -122,9 +120,9 @@ public class AuthService {
         log.info("auth_register_success", kv("username", username));
     }
 
-    // ============================================================
+    // ==========================================================================================
     // LOGIN
-    // ============================================================
+    // ==========================================================================================
     public TokenResponse login(String username, String password, String deviceId, String ip, String userAgent) {
 
         loginAttemptService.ensureNotLocked(username);
@@ -141,7 +139,7 @@ public class AuthService {
         if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now())) {
             loginFailureCounter.increment();
             loginLockoutCounter.increment();
-            throw new AccountLockedException("Account locked until: " + user.getLockedUntil());
+            throw new AccountLockedException("Account locked");
         }
 
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
@@ -160,9 +158,9 @@ public class AuthService {
         );
     }
 
-    // ============================================================
-    // REFRESH (ROTATION + REPLAY DETECTION)
-    // ============================================================
+    // ==========================================================================================
+    // REFRESH — FIXED VERSION
+    // ==========================================================================================
     public TokenResponse refresh(String refreshToken, String deviceId, String ip) {
 
         String hash = HashUtils.sha256(refreshToken);
@@ -172,53 +170,58 @@ public class AuthService {
 
         tagCurrentSpan(rt.getUserId(), rt.getDeviceId(), rt.getIp(), rt.getJti());
 
-        if (rt.isRevoked()) {
-            log.error("auth_refresh_replay_detected", kv("userId", rt.getUserId()));
-            refreshReplayCounter.increment();
-            refreshTokenRepository.revokeAllForUser(rt.getUserId());
-            throw new ReplayDetectedException("Refresh token replay detected");
-        }
-
         Instant now = refreshTokenRepository.getDatabaseTime();
 
-        if (rt.getExpiresAt().minusSeconds(5).isBefore(now)) {
-            log.warn("auth_refresh_expired", kv("userId", rt.getUserId()));
+        // 1️⃣ HARD FIX: REVOKED → 401 IMMEDIATELY
+        if (rt.isRevoked()) {
+            log.warn("auth_refresh_revoked_token", kv("userId", rt.getUserId()));
+            throw new InvalidCredentialsException("Refresh token revoked");
+        }
+
+        // 2️⃣ EXPIRED → also 401 (do NOT revoke-all)
+        if (now.isAfter(rt.getExpiresAt())) {
             refreshReplayCounter.increment();
-            refreshTokenRepository.revokeAllForUser(rt.getUserId());
+            rt.setRevoked(true);
+            refreshTokenRepository.save(rt);
             throw new TokenExpiredException("Refresh token expired");
         }
 
+        // 3️⃣ NORMAL ROTATION
         rt.setRevoked(true);
         refreshTokenRepository.save(rt);
+
         refreshSuccessCounter.increment();
 
-        String finalDevice = rt.getDeviceId() != null ? rt.getDeviceId() : deviceId;
-        String finalIp = rt.getIp() != null ? rt.getIp() : ip;
-
         return requestTimer.record(() ->
-                createTokens(rt.getUserId(), finalDevice, finalIp, rt.getUserAgent())
+                createTokens(
+                        rt.getUserId(),
+                        rt.getDeviceId() != null ? rt.getDeviceId() : deviceId,
+                        rt.getIp() != null ? rt.getIp() : ip,
+                        rt.getUserAgent()
+                )
         );
     }
 
-    // ============================================================
+    // ==========================================================================================
     // LOGOUT
-    // ============================================================
+    // ==========================================================================================
     public void logout(String refreshToken, String accessToken) {
 
-        if (refreshToken == null || refreshToken.isBlank())
+        if (refreshToken == null)
             throw new InvalidCredentialsException("Missing refresh token");
 
-        if (accessToken == null || accessToken.isBlank())
+        if (accessToken == null)
             throw new InvalidCredentialsException("Missing access token");
 
         tokenBlacklistService.blacklist(accessToken);
 
         String hash = HashUtils.sha256(refreshToken);
+
         RefreshTokenEntity rt = refreshTokenRepository.findByTokenHash(hash)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
 
         if (rt.isRevoked())
-            throw new InvalidCredentialsException("Refresh token already revoked");
+            throw new InvalidCredentialsException("Already revoked");
 
         tagCurrentSpan(rt.getUserId(), rt.getDeviceId(), rt.getIp(), rt.getJti());
 
@@ -229,36 +232,33 @@ public class AuthService {
         });
     }
 
-    // ============================================================
-    // CREATE TOKENS — RS256 + KID
-    // ============================================================
+    // ==========================================================================================
+    // CREATE TOKENS
+    // ==========================================================================================
     private TokenResponse createTokens(UUID userId, String deviceId, String ip, String userAgent) {
 
-        Instant now = Instant.now();
+        Instant now = Instant.now().plusMillis(5);
         Instant accessExp = now.plusSeconds(accessTtlSeconds);
 
         var keyPair = keyStore.getCurrentKeyPair();
         PrivateKey privateKey = keyPair.getPrivate();
         String kid = keyStore.getCurrentKid();
 
-        // Create access token
-        String accessToken = Jwts.builder()
+        String access = Jwts.builder()
                 .setHeaderParam("kid", kid)
-                .setHeaderParam("typ", "JWT")
                 .setSubject(userId.toString())
-                .setId(UUID.randomUUID().toString())
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(accessExp))
+                .setId(UUID.randomUUID().toString())
                 .signWith(privateKey, SignatureAlgorithm.RS256)
                 .compact();
 
-        // Opaque refresh token
-        String refreshPlain = UUID.randomUUID().toString();
-        String refreshHash = HashUtils.sha256(refreshPlain);
+        String plain = UUID.randomUUID().toString();
+        String hash = HashUtils.sha256(plain);
 
         RefreshTokenEntity rt = new RefreshTokenEntity();
         rt.setUserId(userId);
-        rt.setTokenHash(refreshHash);
+        rt.setTokenHash(hash);
         rt.setExpiresAt(now.plusSeconds(refreshTtlSeconds));
         rt.setRevoked(false);
         rt.setDeviceId(deviceId);
@@ -268,12 +268,12 @@ public class AuthService {
 
         refreshTokenRepository.save(rt);
 
-        return new TokenResponse(accessToken, refreshPlain, accessTtlSeconds);
+        return new TokenResponse(access, plain, accessTtlSeconds);
     }
 
-    // ============================================================
-    // TRACE TAGGING
-    // ============================================================
+    // ==========================================================================================
+    // TRACE TAGS
+    // ==========================================================================================
     private void tagCurrentSpan(UUID userId, String deviceId, String ip, UUID jti) {
         Span span = Span.current();
         if (!span.getSpanContext().isValid()) return;

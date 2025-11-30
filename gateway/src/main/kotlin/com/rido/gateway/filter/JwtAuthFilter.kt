@@ -25,7 +25,7 @@ class JwtAuthFilter(
 
             val path = exchange.request.path.toString()
 
-            // Publicly allowed endpoints
+            // Public endpoints
             if (path.startsWith("/auth/login") ||
                 path.startsWith("/auth/register") ||
                 path.startsWith("/auth/refresh") ||
@@ -40,9 +40,7 @@ class JwtAuthFilter(
             val token = extractToken(exchange.request.headers)
                 ?: return@GatewayFilter unauthorized(exchange)
 
-            // ============================
-            // 1️⃣ Extract header manually
-            // ============================
+            // ----- Decode JWT header -----
             val parts = token.split(".")
             if (parts.size != 3) return@GatewayFilter unauthorized(exchange)
 
@@ -60,15 +58,11 @@ class JwtAuthFilter(
 
             val kid = header["kid"] as? String ?: return@GatewayFilter unauthorized(exchange)
 
-            // ============================
-            // 2️⃣ Resolve RSA public key
-            // ============================
+            // Resolve correct RSA public key
             val publicKey = keyResolver.resolve(kid)
                 ?: return@GatewayFilter unauthorized(exchange)
 
-            // ============================
-            // 3️⃣ Parse + verify RS256
-            // ============================
+            // Parse & verify RS256 token
             val claims = try {
                 Jwts.parserBuilder()
                     .setSigningKey(publicKey)
@@ -82,9 +76,7 @@ class JwtAuthFilter(
             val jti = claims.id ?: return@GatewayFilter unauthorized(exchange)
             val userId = claims.subject ?: return@GatewayFilter unauthorized(exchange)
 
-            // ============================
-            // 4️⃣ Redis JTI blacklist check
-            // ============================
+            // -----  Redis JTI blacklist check  -----
             redis.hasKey("auth:jti:blacklist:$jti")
                 .flatMap { isBlacklisted ->
                     if (isBlacklisted) {
@@ -92,7 +84,7 @@ class JwtAuthFilter(
                         return@flatMap exchange.response.setComplete()
                     }
 
-                    // Add X-User-ID for downstream services
+                    // ----- INJECT USER ID -----
                     val mutated = exchange.mutate()
                         .request { it.header("X-User-ID", userId) }
                         .build()

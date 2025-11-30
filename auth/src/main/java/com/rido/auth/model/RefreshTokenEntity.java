@@ -21,7 +21,7 @@ public class RefreshTokenEntity {
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
-    @Column(nullable = false)
+    @Column(name = "revoked", nullable = false)
     private boolean revoked = false;
 
     @Column(name = "device_id")
@@ -39,70 +39,35 @@ public class RefreshTokenEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
-    // Getters & setters
+    // ============================
+    // Getters & Setters
+    // ============================
 
-    public UUID getId() {
-        return id;
-    }
-    // No setter for id → JPA manages it
+    public UUID getId() { return id; }
 
-    public UUID getUserId() {
-        return userId;
-    }
-    public void setUserId(UUID userId) {
-        this.userId = userId;
-    }
+    public UUID getUserId() { return userId; }
+    public void setUserId(UUID userId) { this.userId = userId; }
 
-    public String getTokenHash() {
-        return tokenHash;
-    }
-    public void setTokenHash(String tokenHash) {
-        this.tokenHash = tokenHash;
-    }
+    public String getTokenHash() { return tokenHash; }
+    public void setTokenHash(String tokenHash) { this.tokenHash = tokenHash; }
 
-    public Instant getExpiresAt() {
-        return expiresAt;
-    }
-    public void setExpiresAt(Instant expiresAt) {
-        this.expiresAt = expiresAt;
-    }
+    public Instant getExpiresAt() { return expiresAt; }
+    public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
 
-    public boolean isRevoked() {
-        return revoked;
-    }
-    public void setRevoked(boolean revoked) {
-        this.revoked = revoked;
-    }
+    public boolean isRevoked() { return revoked; }
+    public void setRevoked(boolean revoked) { this.revoked = revoked; }
 
-    public String getDeviceId() {
-        return deviceId;
-    }
-    public void setDeviceId(String deviceId) {
-        this.deviceId = deviceId;
-    }
+    public String getDeviceId() { return deviceId; }
+    public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
 
-    public String getUserAgent() {
-        return userAgent;
-    }
-    public void setUserAgent(String userAgent) {
-        this.userAgent = userAgent;
-    }
+    public String getUserAgent() { return userAgent; }
+    public void setUserAgent(String userAgent) { this.userAgent = userAgent; }
 
-    public String getIp() {
-        return ip;
-    }
-    public void setIp(String ip) {
-        this.ip = ip;
-    }
+    public String getIp() { return ip; }
+    public void setIp(String ip) { this.ip = ip; }
 
-    public UUID getJti() {
-        return jti;
-    }
-    public void setJti(UUID jti) {
-        this.jti = jti;
-    }
+    public UUID getJti() { return jti; }
+    public void setJti(UUID jti) { this.jti = jti; }
 
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
+    public Instant getCreatedAt() { return createdAt; }
 }

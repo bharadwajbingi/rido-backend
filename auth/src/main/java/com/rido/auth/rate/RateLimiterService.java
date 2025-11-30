@@ -24,6 +24,7 @@ public class RateLimiterService {
 
         String redisKey = "rate:" + key;
 
+        // Remove old entries outside window
         redis.opsForZSet().removeRangeByScore(redisKey, 0, windowStart);
 
         Long count = redis.opsForZSet().count(redisKey, windowStart, now);
@@ -32,7 +33,14 @@ public class RateLimiterService {
             throw new TooManyRequestsException("Too many requests, slow down.");
         }
 
+        // Add new entry
         redis.opsForZSet().add(redisKey, now + "-" + UUID.randomUUID(), now);
         redis.expire(redisKey, Duration.ofSeconds(windowSeconds + 2));
+    }
+
+    // ⭐ NEW METHOD (fixes compile error)
+    public void reset(String key) {
+        String redisKey = "rate:" + key;
+        redis.delete(redisKey);
     }
 }

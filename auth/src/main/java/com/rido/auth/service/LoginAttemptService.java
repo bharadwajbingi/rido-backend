@@ -25,7 +25,7 @@ public class LoginAttemptService {
     private final StringRedisTemplate redis;
     private final UserRepository userRepository;
 
-    // METRICS (Point 8)
+    // METRICS
     private final Counter loginAttemptCounter;
     private final Counter loginBlockedCounter;
     private final Counter loginHardLockCounter;
@@ -42,7 +42,6 @@ public class LoginAttemptService {
         this.redis = redis;
         this.userRepository = userRepository;
 
-        // Micrometer counters
         this.loginAttemptCounter = registry.counter("auth.login.attempt");
         this.loginBlockedCounter = registry.counter("auth.login.blocked");
         this.loginHardLockCounter = registry.counter("auth.login.hardlock");
@@ -98,7 +97,8 @@ public class LoginAttemptService {
 
         loginAttemptCounter.increment();
 
-        String attemptsKey = "auth:login:attempts:" + username + ":" + ip;
+        // ⭐ FIX: lock is per USER, not per IP
+        String attemptsKey = "auth:login:attempts:" + username;
         Long attempts = redis.opsForValue().increment(attemptsKey);
 
         if (attempts == 1) {
@@ -130,14 +130,16 @@ public class LoginAttemptService {
         }
     }
 
-    // ✅ CLEAR LOCK ON SUCCESSFUL LOGIN
+    // ✔ CLEAR LOCK ON SUCCESSFUL LOGIN
     public void onSuccess(String username, String ip, UserEntity user) {
 
-        redis.delete("auth:login:attempts:" + username + ":" + ip);
+        redis.delete("auth:login:attempts:" + username);
         redis.delete("auth:login:locked:" + username);
 
-        user.setLockedUntil(null);
-        userRepository.save(user);
+        if (user != null) {
+            user.setLockedUntil(null);
+            userRepository.save(user);
+        }
 
         logger.info("login_success_reset",
                 kv("username", username),
@@ -147,9 +149,7 @@ public class LoginAttemptService {
     // 🧪 TEST UTILITY
     public void resetFailures(String username) {
 
-        redis.keys("auth:login:attempts:" + username + ":*")
-                .forEach(redis::delete);
-
+        redis.delete("auth:login:attempts:" + username);
         redis.delete("auth:login:locked:" + username);
 
         userRepository.findByUsername(username).ifPresent(u -> {
