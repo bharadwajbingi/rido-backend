@@ -68,6 +68,7 @@ implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("io.micrometer:micrometer-registry-prometheus")
     implementation("io.opentelemetry:opentelemetry-api:1.41.0")
+    
 
 
 

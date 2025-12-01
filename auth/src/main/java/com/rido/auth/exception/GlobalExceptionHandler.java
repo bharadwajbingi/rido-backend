@@ -1,9 +1,8 @@
 package com.rido.auth.exception;
-import com.rido.auth.exception.ReplayDetectedException;
-import com.rido.auth.exception.TokenExpiredException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -80,8 +79,8 @@ public class GlobalExceptionHandler {
     // ============================================
     // MALFORMED JSON
     // ============================================
-    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
-    public ResponseEntity<?> handleBadJson(Exception e) {
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<?> handleBadJson(HttpMessageNotReadableException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(body(HttpStatus.BAD_REQUEST, "Invalid or malformed JSON"));
     }

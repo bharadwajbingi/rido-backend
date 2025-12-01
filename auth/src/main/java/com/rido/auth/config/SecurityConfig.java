@@ -7,8 +7,10 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
@@ -24,9 +26,10 @@ public class SecurityConfig {
                     "/auth/login",
                     "/auth/refresh",
                     "/auth/logout",
-                    "/auth/check-username"
+                    "/auth/check-username",
+                    "/internal/admin/create" 
                 ).permitAll()
-                .anyRequest().permitAll()
+                .anyRequest().authenticated()
             )
             .httpBasic(httpBasic -> httpBasic.disable())
             .formLogin(form -> form.disable());

@@ -23,6 +23,7 @@
 *.tar.gz
 *.rar
 .zipignore
+zip-tool/
 
 # Virtual machine crash logs
 hs_err_pid*
@@ -43,7 +44,6 @@ build/
 **/build/
 **/out/
 **/.idea/
-
 # Ignore gradle caches
 .caches/
 
@@ -134,3 +134,7 @@ gateway/src/main/resources/application-dev.yml
 *.sql
 *.db
 *.dump
+zip-tool/
+*.zip
+*.rar
+*.7z

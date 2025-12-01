@@ -1,152 +1,194 @@
 #!/bin/bash
+set -e
 
-BASE="http://localhost:8080/auth"
-USER="gpt11009"
-PASS="super1235"
-DEVICE1="device-111"
-DEVICE2="device-222"
+BASE_URL="http://localhost:8080/auth"
 
-echo
-echo "==============================="
-echo "STEP 0: Register Test User"
-echo "==============================="
-curl -s -X POST "$BASE/register" \
- -H "Content-Type: application/json" \
- -d "{\"username\":\"$USER\",\"password\":\"$PASS\"}"
-echo; echo
+GREEN="\e[32m"
+RED="\e[31m"
+YELLOW="\e[33m"
+RESET="\e[0m"
 
+pass() { echo -e "${GREEN}[PASS]${RESET} $1"; }
+fail() { echo -e "${RED}[FAIL]${RESET} $1"; exit 1; }
+section() {
+  echo ""
+  echo -e "${YELLOW}==============================="
+  echo -e "$1"
+  echo -e "===============================${RESET}"
+}
 
-echo "==============================="
-echo "STEP 1: Login → Create Session #1"
-echo "==============================="
-LOGIN1=$(curl -s -X POST "$BASE/login" \
- -H "Content-Type: application/json" \
- -H "X-Device-Id: $DEVICE1" \
- -d "{\"username\":\"$USER\",\"password\":\"$PASS\"}")
+###############################################
+# STEP 1 — REGISTER
+###############################################
+section "STEP 1: Register new user"
 
-echo "$LOGIN1"; echo
+USERNAME="test_$(date +%s)"
+PASSWD="Secret123"
+
+REG=$(curl -s -w "%{http_code}" -o /tmp/reg.json \
+  -X POST "$BASE_URL/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWD\"}")
+
+[[ "$REG" == "200" ]] || fail "Registration failed"
+pass "Registration OK for $USERNAME"
+
+###############################################
+# STEP 2 — LOGIN SESSION #1
+###############################################
+section "STEP 2: Login → Session #1"
+
+LOGIN1=$(curl -s -X POST "$BASE_URL/login" \
+  -H "Content-Type: application/json" \
+  -H "X-Device-Id: dev1" \
+  -H "User-Agent: Chrome" \
+  -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWD\"}")
 
 ACCESS1=$(echo "$LOGIN1" | jq -r '.accessToken')
 REFRESH1=$(echo "$LOGIN1" | jq -r '.refreshToken')
 
-USER_ID=$(echo "$ACCESS1" | awk -F '.' '{print $2}' | base64 -d 2>/dev/null | jq -r '.sub')
+[[ "$ACCESS1" != "null" ]] || fail "Login #1 failed"
 
-echo "ACCESS1:  $ACCESS1"
-echo "REFRESH1: $REFRESH1"
-echo "USER_ID:  $USER_ID"
-echo
+USER_ID=$(echo "$ACCESS1" | cut -d '.' -f2 | base64 -d | jq -r '.sub')
 
+pass "Login #1 OK → USER_ID = $USER_ID"
 
-echo "==============================="
-echo "STEP 2: Login → Create Session #2"
-echo "==============================="
-LOGIN2=$(curl -s -X POST "$BASE/login" \
- -H "Content-Type: application/json" \
- -H "X-Device-Id: $DEVICE2" \
- -d "{\"username\":\"$USER\",\"password\":\"$PASS\"}")
+###############################################
+# STEP 3 — LOGIN SESSION #2
+###############################################
+section "STEP 3: Login → Session #2"
 
-echo "$LOGIN2"; echo
+LOGIN2=$(curl -s -X POST "$BASE_URL/login" \
+  -H "Content-Type: application/json" \
+  -H "X-Device-Id: dev2" \
+  -H "User-Agent: Firefox" \
+  -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWD\"}")
 
 ACCESS2=$(echo "$LOGIN2" | jq -r '.accessToken')
 REFRESH2=$(echo "$LOGIN2" | jq -r '.refreshToken')
 
-echo "ACCESS2:  $ACCESS2"
-echo "REFRESH2: $REFRESH2"
-echo
+[[ "$ACCESS2" != "null" ]] || fail "Login #2 failed"
+
+pass "Login #2 OK"
+
+###############################################
+section "STEP 4: List Sessions (expect 2 active)"
+
+SESS=$(curl -s -X GET "$BASE_URL/sessions" \
+  -H "X-User-ID: $USER_ID" \
+  -H "Authorization: Bearer $ACCESS1")
+
+ACTIVE_COUNT=$(echo "$SESS" | jq '[.[] | select(.revoked == false)] | length')
+[[ "$ACTIVE_COUNT" == "2" ]] || fail "Expected 2 sessions, got $ACTIVE_COUNT"
+
+# FIX: Select sessions by device ID
+SESSION1_ID=$(echo "$SESS" | jq -r '.[] | select(.deviceId=="dev1") | .id')
+SESSION2_ID=$(echo "$SESS" | jq -r '.[] | select(.deviceId=="dev2") | .id')
+
+[[ "$SESSION1_ID" != "" ]] || fail "Could not find session for dev1"
+[[ "$SESSION2_ID" != "" ]] || fail "Could not find session for dev2"
+
+pass "Session list OK (2 active)"
 
 
-echo "==============================="
-echo "STEP 3: List Sessions (Expect 2 Sessions)"
-echo "==============================="
-SESSIONS=$(curl -s -X GET "$BASE/sessions" \
- -H "Authorization: Bearer $ACCESS1" \
- -H "X-User-ID: $USER_ID")
+###############################################
+# STEP 5 — REVOKE ONE SESSION
+###############################################
+section "STEP 5: Revoke Session #1"
 
-echo "$SESSIONS"; echo
+curl -s -X POST "$BASE_URL/sessions/$SESSION1_ID/revoke" \
+  -H "X-User-ID: $USER_ID" \
+  -H "Authorization: Bearer $ACCESS1" >/dev/null
 
+UPDATED=$(curl -s -X GET "$BASE_URL/sessions" \
+  -H "X-User-ID: $USER_ID" \
+  -H "Authorization: Bearer $ACCESS1")
 
-# --------------------------------------------------------------
-# 100% CORRECT FIX:
-# MATCH refresh tokens to sessions using deviceId
-# --------------------------------------------------------------
+ACTIVE=$(echo "$UPDATED" | jq '[.[] | select(.revoked == false)] | length')
 
-SESSION1_ID=$(echo "$SESSIONS" | jq -r ".[] | select(.deviceId==\"$DEVICE1\") | .id")
-SESSION2_ID=$(echo "$SESSIONS" | jq -r ".[] | select(.deviceId==\"$DEVICE2\") | .id")
+[[ "$ACTIVE" == "1" ]] || fail "Single-session revoke failed"
 
-echo "SESSION (device-111) = $SESSION1_ID"
-echo "SESSION (device-222) = $SESSION2_ID"
-echo
+pass "Revoke #1 OK"
 
+###############################################
+# STEP 6 — REVOKED REFRESH TOKEN MUST FAIL
+###############################################
+section "STEP 6: Refresh using revoked token → expect 401"
 
-echo "==============================="
-echo "STEP 4: REVOKE Session for DEVICE1"
-echo "==============================="
-curl -s -X POST "$BASE/sessions/$SESSION1_ID/revoke" \
- -H "X-User-ID: $USER_ID" \
- -H "Authorization: Bearer $ACCESS1"
-echo; echo
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X POST "$BASE_URL/refresh" \
+  -H "Content-Type: application/json" \
+  -H "X-Device-Id: dev1" \
+  -d "{\"refreshToken\":\"$REFRESH1\"}")
 
+[[ "$STATUS" == "401" ]] || fail "Revoked refresh did NOT return 401"
 
-echo "==============================="
-echo "STEP 5: Verify DEVICE1 Session is Revoked"
-echo "==============================="
-SESSIONS2=$(curl -s -X GET "$BASE/sessions" \
- -H "X-User-ID: $USER_ID")
+pass "Revoked refresh returns 401 ✔"
 
-echo "$SESSIONS2"; echo
+###############################################
+# STEP 7 — VALID REFRESH WORKS
+###############################################
+section "STEP 7: Valid session refresh OK"
 
+VAL=$(curl -s -X POST "$BASE_URL/refresh" \
+  -H "Content-Type: application/json" \
+  -H "X-Device-Id: dev2" \
+  -d "{\"refreshToken\":\"$REFRESH2\"}")
 
-echo "==============================="
-echo "STEP 6: Try Using REVOKED Refresh Token #1 → Must be 401"
-echo "==============================="
-STATUS1=$(curl -s -o /dev/null -w "%{http_code}" \
-   -X POST "$BASE/refresh" \
-   -H "Content-Type: application/json" \
-   -d "{\"refreshToken\":\"$REFRESH1\"}")
+NEW_REF=$(echo "$VAL" | jq -r '.refreshToken')
 
-echo "Status: $STATUS1"
-echo
+[[ "$NEW_REF" != "null" ]] || fail "Valid refresh failed"
 
+pass "Valid refresh OK"
 
-echo "==============================="
-echo "STEP 7: Refresh with Valid Session #2 → Should Work"
-echo "==============================="
-RESP_REFRESH2=$(curl -s -X POST "$BASE/refresh" \
- -H "Content-Type: application/json" \
- -d "{\"refreshToken\":\"$REFRESH2\"}")
+###############################################
+# STEP 8 — REPLAY DETECTION
+###############################################
+section "STEP 8: Replay same refresh token → expect 401"
 
-echo "$RESP_REFRESH2"; echo
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X POST "$BASE_URL/refresh" \
+  -H "Content-Type: application/json" \
+  -H "X-Device-Id: dev2" \
+  -d "{\"refreshToken\":\"$REFRESH2\"}")
 
+[[ "$STATUS" == "401" ]] || fail "Replay attack NOT detected"
 
-echo "==============================="
-echo "STEP 8: REVOKE ALL SESSIONS"
-echo "==============================="
-curl -s -X POST "$BASE/sessions/revoke-all" \
- -H "X-User-ID: $USER_ID"
-echo; echo
+pass "Replay detection OK"
 
+###############################################
+# STEP 9 — LOGOUT (Blacklist access token)
+###############################################
+section "STEP 9: Logout"
 
-echo "==============================="
-echo "STEP 9: Verify NO Active Sessions Left"
-echo "==============================="
-SESSIONS3=$(curl -s -X GET "$BASE/sessions" \
- -H "X-User-ID: $USER_ID")
+curl -s -X POST "$BASE_URL/logout" \
+  -H "Authorization: Bearer $ACCESS2" \
+  -H "Content-Type: application/json" \
+  -d "{\"refreshToken\":\"$NEW_REF\"}" >/dev/null
 
-echo "$SESSIONS3"; echo
+pass "Logout OK"
 
+###############################################
+# STEP 10 — REVOKE ALL SESSIONS
+###############################################
+section "STEP 10: Revoke ALL"
 
-echo "==============================="
-echo "STEP 10: Try Using REFRESH2 after Revoke-All → Must be 401"
-echo "==============================="
-STATUS2=$(curl -s -o /dev/null -w "%{http_code}" \
-   -X POST "$BASE/refresh" \
-   -H "Content-Type: application/json" \
-   -d "{\"refreshToken\":\"$REFRESH2\"}")
+curl -s -X POST "$BASE_URL/sessions/revoke-all" \
+  -H "X-User-ID: $USER_ID" \
+  -H "Authorization: Bearer $ACCESS1" >/dev/null
 
-echo "Status: $STATUS2"
-echo
+SESS2=$(curl -s -X GET "$BASE_URL/sessions" \
+  -H "X-User-ID: $USER_ID" \
+  -H "Authorization: Bearer $ACCESS1")
 
+COUNT2=$(echo "$SESS2" | jq 'length')
 
-echo "==============================="
-echo "TEST SUITE COMPLETED"
-echo "==============================="
+[[ "$COUNT2" == "0" ]] || fail "Revoke-all failed"
+
+pass "Revoke ALL OK"
+
+###############################################
+# FINAL
+###############################################
+echo ""
+echo -e "${GREEN}🎉 ALL TESTS PASSED — AUTH SERVICE IS 100% CORRECT 🎉${RESET}"

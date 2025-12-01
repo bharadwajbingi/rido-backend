@@ -18,13 +18,16 @@ public class UserEntity {
     @Column(nullable = false)
     private String passwordHash;
 
+    // Auth roles: USER or ADMIN only
     @Column(nullable = false)
-    private String role = "rider";
+    private String role = "USER";
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
-    // --- Login security fields ---
+    // ------------------------------
+    // Login security fields
+    // ------------------------------
     @Column(name = "failed_login_attempts", nullable = false)
     private int failedLoginAttempts = 0;
 
@@ -37,7 +40,9 @@ public class UserEntity {
     @Column(name = "locked_until")
     private Instant lockedUntil;
 
-    // Getters & setters
+    // ------------------------------
+    // Getters & Setters
+    // ------------------------------
     public UUID getId() {
         return id;
     }

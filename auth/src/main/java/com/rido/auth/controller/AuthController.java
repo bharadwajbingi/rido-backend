@@ -25,6 +25,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
@@ -111,18 +112,13 @@ public class AuthController {
         loginAttemptService.ensureNotLocked(username);
 
         try {
+
             TokenResponse resp = authService.login(
                     username,
                     req.getPassword(),
                     deviceId,
                     ip,
                     userAgent
-            );
-
-            loginAttemptService.onSuccess(
-                    username,
-                    ip,
-                    userRepository.findByUsername(username).orElse(null)
             );
 
             rateLimiter.checkRateLimit("login:ip:" + ip, 50, 60);
@@ -164,13 +160,12 @@ public class AuthController {
         }
     }
 
-
     // =====================================================
     // REFRESH TOKEN (ROTATION)
     // =====================================================
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(
-            @RequestBody RefreshRequest body,
+            @Valid @RequestBody RefreshRequest body,
             HttpServletRequest request
     ) {
         if (body.refreshToken() == null) {
@@ -182,7 +177,6 @@ public class AuthController {
         String deviceId = request.getHeader("X-Device-Id");
 
         log.info("auth_refresh_attempt",
-                kv("refreshToken", body.refreshToken()),
                 kv("deviceId", deviceId),
                 kv("ip", ip)
         );
@@ -198,7 +192,6 @@ public class AuthController {
 
         return ResponseEntity.ok(resp);
     }
-
 
     // =====================================================
     // LOGOUT
@@ -218,19 +211,14 @@ public class AuthController {
             accessToken = authHeader.substring(7);
         }
 
-        log.info("auth_logout_attempt",
-                kv("refreshToken", req.refreshToken())
-        );
+        log.info("auth_logout_attempt");
 
         authService.logout(req.refreshToken(), accessToken);
 
-        log.info("auth_logout_success",
-                kv("refreshToken", req.refreshToken())
-        );
+        log.info("auth_logout_success");
 
         return ResponseEntity.ok(Map.of("status", "ok"));
     }
-
 
     // =====================================================
     // /me
@@ -258,9 +246,8 @@ public class AuthController {
                 });
     }
 
-
     // =====================================================
-    // CHECK USERNAME
+    // CHECK USERNAME AVAILABILITY
     // =====================================================
     @GetMapping("/check-username")
     public ResponseEntity<?> checkUsername(@RequestParam String username) {
@@ -275,7 +262,6 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("available", !exists));
     }
 
-
     // =====================================================
     // LIST ACTIVE SESSIONS
     // =====================================================
@@ -285,13 +271,10 @@ public class AuthController {
     ) {
         UUID userId = UUID.fromString(userIdHeader);
 
-        log.info("auth_sessions_list",
-                kv("userId", userId)
-        );
-
         var sessions = refreshTokenRepository
                 .findActiveByUserId(userId)
                 .stream()
+                .sorted((a,b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
                 .map(this::toDTO)
                 .toList();
 
@@ -307,11 +290,7 @@ public class AuthController {
     ) {
         UUID userId = UUID.fromString(userIdHeader);
 
-        log.info("auth_sessions_revoke_all_attempt", kv("userId", userId));
-
         refreshTokenRepository.revokeAllForUser(userId);
-
-        log.info("auth_sessions_revoke_all_success", kv("userId", userId));
 
         return ResponseEntity.ok(Map.of("status", "ok"));
     }
@@ -326,34 +305,14 @@ public class AuthController {
     ) {
         UUID userId = UUID.fromString(userIdHeader);
 
-        log.info("auth_session_revoke_attempt",
-                kv("userId", userId),
-                kv("sessionId", sessionId)
-        );
-
         RefreshTokenEntity session = refreshTokenRepository.findById(sessionId)
-                .orElseThrow(() -> {
-                    log.warn("auth_session_revoke_not_found",
-                            kv("userId", userId),
-                            kv("sessionId", sessionId)
-                    );
-                    return new InvalidCredentialsException("Session not found");
-                });
+                .orElseThrow(() -> new InvalidCredentialsException("Session not found"));
 
         if (!session.getUserId().equals(userId)) {
-            log.error("auth_session_revoke_unauthorized",
-                    kv("userId", userId),
-                    kv("sessionId", sessionId)
-            );
             throw new InvalidCredentialsException("Unauthorized session access");
         }
 
         refreshTokenRepository.revokeOne(sessionId);
-
-        log.info("auth_session_revoke_success",
-                kv("userId", userId),
-                kv("sessionId", sessionId)
-        );
 
         return ResponseEntity.ok(Map.of("status", "revoked"));
     }
@@ -362,13 +321,16 @@ public class AuthController {
     // HELPERS
     // =====================================================
     private SessionDTO toDTO(RefreshTokenEntity r) {
+        Instant created =
+                r.getCreatedAt() != null ? r.getCreatedAt() : Instant.now();
+
         return new SessionDTO(
                 r.getId(),
                 r.getDeviceId(),
                 r.getIp(),
                 r.getUserAgent(),
                 r.isRevoked(),
-                r.getCreatedAt(),
+                created,
                 r.getExpiresAt()
         );
     }

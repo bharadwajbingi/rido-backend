@@ -33,6 +33,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 @Service
 public class AuthService {
@@ -86,13 +87,13 @@ public class AuthService {
         this.maxFailedAttempts = maxFailedAttempts;
         this.lockoutDurationSeconds = lockoutDurationSeconds;
 
-        loginSuccessCounter    = registry.counter("auth.login.success");
-        loginFailureCounter    = registry.counter("auth.login.failure");
-        refreshSuccessCounter  = registry.counter("auth.refresh.ok");
-        refreshReplayCounter   = registry.counter("auth.refresh.replay");
-        loginLockoutCounter    = registry.counter("auth.login.lockout");
-        logoutSuccessCounter   = registry.counter("auth.logout.ok");
-        requestTimer           = registry.timer("auth.request.duration");
+        loginSuccessCounter = registry.counter("auth.login.success");
+        loginFailureCounter = registry.counter("auth.login.failure");
+        refreshSuccessCounter = registry.counter("auth.refresh.ok");
+        refreshReplayCounter = registry.counter("auth.refresh.replay");
+        loginLockoutCounter = registry.counter("auth.login.lockout");
+        logoutSuccessCounter = registry.counter("auth.logout.ok");
+        requestTimer = registry.timer("auth.request.duration");
     }
 
     // ==========================================================================================
@@ -113,7 +114,9 @@ public class AuthService {
         UserEntity user = new UserEntity();
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(password));
-        user.setRole("user");
+
+        // FIX: role must always be USER (auth roles are ADMIN, USER)
+        user.setRole("USER");
 
         userRepository.save(user);
 
@@ -154,12 +157,12 @@ public class AuthService {
         tagCurrentSpan(user.getId(), deviceId, ip, null);
 
         return requestTimer.record(() ->
-                createTokens(user.getId(), deviceId, ip, userAgent)
+                createTokens(user.getId(), user.getRole(), deviceId, ip, userAgent)
         );
     }
 
     // ==========================================================================================
-    // REFRESH — FIXED VERSION
+    // REFRESH
     // ==========================================================================================
     public TokenResponse refresh(String refreshToken, String deviceId, String ip) {
 
@@ -172,13 +175,10 @@ public class AuthService {
 
         Instant now = refreshTokenRepository.getDatabaseTime();
 
-        // 1️⃣ HARD FIX: REVOKED → 401 IMMEDIATELY
         if (rt.isRevoked()) {
-            log.warn("auth_refresh_revoked_token", kv("userId", rt.getUserId()));
             throw new InvalidCredentialsException("Refresh token revoked");
         }
 
-        // 2️⃣ EXPIRED → also 401 (do NOT revoke-all)
         if (now.isAfter(rt.getExpiresAt())) {
             refreshReplayCounter.increment();
             rt.setRevoked(true);
@@ -186,15 +186,18 @@ public class AuthService {
             throw new TokenExpiredException("Refresh token expired");
         }
 
-        // 3️⃣ NORMAL ROTATION
         rt.setRevoked(true);
         refreshTokenRepository.save(rt);
 
         refreshSuccessCounter.increment();
 
+        UserEntity user = userRepository.findById(rt.getUserId())
+                .orElseThrow(() -> new InvalidCredentialsException("User no longer exists"));
+
         return requestTimer.record(() ->
                 createTokens(
                         rt.getUserId(),
+                        user.getRole(),
                         rt.getDeviceId() != null ? rt.getDeviceId() : deviceId,
                         rt.getIp() != null ? rt.getIp() : ip,
                         rt.getUserAgent()
@@ -235,7 +238,7 @@ public class AuthService {
     // ==========================================================================================
     // CREATE TOKENS
     // ==========================================================================================
-    private TokenResponse createTokens(UUID userId, String deviceId, String ip, String userAgent) {
+    private TokenResponse createTokens(UUID userId, String role, String deviceId, String ip, String userAgent) {
 
         Instant now = Instant.now().plusMillis(5);
         Instant accessExp = now.plusSeconds(accessTtlSeconds);
@@ -247,6 +250,7 @@ public class AuthService {
         String access = Jwts.builder()
                 .setHeaderParam("kid", kid)
                 .setSubject(userId.toString())
+                .claim("roles", List.of(role))
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(accessExp))
                 .setId(UUID.randomUUID().toString())

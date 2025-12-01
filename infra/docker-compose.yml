@@ -70,6 +70,9 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4317"
       OTEL_TRACES_EXPORTER: "otlp"
       OTEL_METRICS_EXPORTER: "none"
+      FIRST_ADMIN_USERNAME: admin
+      FIRST_ADMIN_PASSWORD: SuperSecretAdmin123
+      ADMIN_SETUP_KEY: InternalSecretKey
 
     volumes:
       - ./otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar

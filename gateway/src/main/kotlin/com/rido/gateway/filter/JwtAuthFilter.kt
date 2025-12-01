@@ -8,6 +8,9 @@ import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFac
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import org.springframework.security.core.authority.SimpleGrantedAuthority
+import org.springframework.security.core.context.ReactiveSecurityContextHolder
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Mono
 import java.util.*
@@ -26,7 +29,8 @@ class JwtAuthFilter(
             val path = exchange.request.path.toString()
 
             // Public endpoints
-            if (path.startsWith("/auth/login") ||
+            if (
+                path.startsWith("/auth/login") ||
                 path.startsWith("/auth/register") ||
                 path.startsWith("/auth/refresh") ||
                 path.startsWith("/auth/logout") ||
@@ -40,7 +44,7 @@ class JwtAuthFilter(
             val token = extractToken(exchange.request.headers)
                 ?: return@GatewayFilter unauthorized(exchange)
 
-            // ----- Decode JWT header -----
+            // Decode JWT header
             val parts = token.split(".")
             if (parts.size != 3) return@GatewayFilter unauthorized(exchange)
 
@@ -58,11 +62,10 @@ class JwtAuthFilter(
 
             val kid = header["kid"] as? String ?: return@GatewayFilter unauthorized(exchange)
 
-            // Resolve correct RSA public key
             val publicKey = keyResolver.resolve(kid)
                 ?: return@GatewayFilter unauthorized(exchange)
 
-            // Parse & verify RS256 token
+            // Parse JWT using RS256
             val claims = try {
                 Jwts.parserBuilder()
                     .setSigningKey(publicKey)
@@ -76,7 +79,7 @@ class JwtAuthFilter(
             val jti = claims.id ?: return@GatewayFilter unauthorized(exchange)
             val userId = claims.subject ?: return@GatewayFilter unauthorized(exchange)
 
-            // -----  Redis JTI blacklist check  -----
+            // Redis JTI blacklist check
             redis.hasKey("auth:jti:blacklist:$jti")
                 .flatMap { isBlacklisted ->
                     if (isBlacklisted) {
@@ -84,12 +87,29 @@ class JwtAuthFilter(
                         return@flatMap exchange.response.setComplete()
                     }
 
-                    // ----- INJECT USER ID -----
+                    // -----------------------------------------
+                    // REQUIRED FIX: Extract roles from JWT
+                    // -----------------------------------------
+                    val roles = (claims["roles"] as? List<*>)
+                        ?.map { SimpleGrantedAuthority("ROLE_$it") }
+                        ?: emptyList()
+
+                    val authentication = UsernamePasswordAuthenticationToken(
+                        userId,
+                        null,
+                        roles
+                    )
+
+                    // Inject X-User-ID for downstream services
                     val mutated = exchange.mutate()
                         .request { it.header("X-User-ID", userId) }
                         .build()
 
+                    // Attach roles + userId to SecurityContext
                     chain.filter(mutated)
+                        .contextWrite(
+                            ReactiveSecurityContextHolder.withAuthentication(authentication)
+                        )
                 }
         }
     }
