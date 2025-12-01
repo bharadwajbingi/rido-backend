@@ -22,13 +22,23 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
+                    // Public auth endpoints
                     "/auth/register",
                     "/auth/login",
                     "/auth/refresh",
                     "/auth/logout",
                     "/auth/check-username",
-                    "/internal/admin/create" 
+
+                    // JWKS must be public (for gateway token verification)
+                    "/auth/keys/.well-known/jwks.json",
+                    "/auth/keys/jwks.json",
+
+                    // Internal admin bootstrap endpoint
+                    // secured by X-SYSTEM-KEY (not by Spring Security)
+                    "/internal/admin/create"
                 ).permitAll()
+
+                // Everything else must be authenticated
                 .anyRequest().authenticated()
             )
             .httpBasic(httpBasic -> httpBasic.disable())
@@ -36,17 +46,15 @@ public class SecurityConfig {
 
         return http.build();
     }
-@Bean
-public PasswordEncoder passwordEncoder() {
-    return new Argon2PasswordEncoder(
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new Argon2PasswordEncoder(
             16,       // salt length
             32,       // hash length
             1,        // parallelism
-            1 << 12,  // memory = 4096 KB = 4MB  (safe + docker friendly)
+            1 << 12,  // 4096 KB memory
             3         // iterations
-    );
-}
-
-
-
+        );
+    }
 }

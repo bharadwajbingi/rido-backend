@@ -28,23 +28,25 @@ class JwtAuthFilter(
 
             val path = exchange.request.path.toString()
 
-            // Public endpoints
+            // Public endpoints (NO AUTH)
             if (
                 path.startsWith("/auth/login") ||
                 path.startsWith("/auth/register") ||
                 path.startsWith("/auth/refresh") ||
                 path.startsWith("/auth/logout") ||
-                path.startsWith("/auth/keys") ||
-                path.startsWith("/auth/.well-known")
+                path.startsWith("/auth/.well-known") ||
+                path.startsWith("/auth/.well-known") ||
+                path.startsWith("/auth/keys/jwks.json")
+
             ) {
                 return@GatewayFilter chain.filter(exchange)
             }
 
-            // Extract Bearer token
+            // Extract JWT
             val token = extractToken(exchange.request.headers)
                 ?: return@GatewayFilter unauthorized(exchange)
 
-            // Decode JWT header
+            // Decode header
             val parts = token.split(".")
             if (parts.size != 3) return@GatewayFilter unauthorized(exchange)
 
@@ -54,18 +56,16 @@ class JwtAuthFilter(
                 return@GatewayFilter unauthorized(exchange)
             }
 
-            val header: Map<String, Any?> = try {
+            val header = try {
                 ObjectMapper().readValue(headerJson, Map::class.java) as Map<String, Any?>
             } catch (e: Exception) {
                 return@GatewayFilter unauthorized(exchange)
             }
 
             val kid = header["kid"] as? String ?: return@GatewayFilter unauthorized(exchange)
+            val publicKey = keyResolver.resolve(kid) ?: return@GatewayFilter unauthorized(exchange)
 
-            val publicKey = keyResolver.resolve(kid)
-                ?: return@GatewayFilter unauthorized(exchange)
-
-            // Parse JWT using RS256
+            // Parse claims
             val claims = try {
                 Jwts.parserBuilder()
                     .setSigningKey(publicKey)
@@ -79,7 +79,7 @@ class JwtAuthFilter(
             val jti = claims.id ?: return@GatewayFilter unauthorized(exchange)
             val userId = claims.subject ?: return@GatewayFilter unauthorized(exchange)
 
-            // Redis JTI blacklist check
+            // Check blacklist
             redis.hasKey("auth:jti:blacklist:$jti")
                 .flatMap { isBlacklisted ->
                     if (isBlacklisted) {
@@ -87,28 +87,28 @@ class JwtAuthFilter(
                         return@flatMap exchange.response.setComplete()
                     }
 
-                    // -----------------------------------------
-                    // REQUIRED FIX: Extract roles from JWT
-                    // -----------------------------------------
+                    // ---------------------------------------------------------
+                    // Extract roles from JWT (THIS FIXES YOUR ADMIN 403 ISSUE)
+                    // ---------------------------------------------------------
                     val roles = (claims["roles"] as? List<*>)
                         ?.map { SimpleGrantedAuthority("ROLE_$it") }
                         ?: emptyList()
 
-                    val authentication = UsernamePasswordAuthenticationToken(
+                    val auth = UsernamePasswordAuthenticationToken(
                         userId,
                         null,
                         roles
                     )
 
-                    // Inject X-User-ID for downstream services
+                    // Add user ID header for downstream services
                     val mutated = exchange.mutate()
                         .request { it.header("X-User-ID", userId) }
                         .build()
 
-                    // Attach roles + userId to SecurityContext
-                    chain.filter(mutated)
+                    // Propagate security context
+                    return@flatMap chain.filter(mutated)
                         .contextWrite(
-                            ReactiveSecurityContextHolder.withAuthentication(authentication)
+                            ReactiveSecurityContextHolder.withAuthentication(auth)
                         )
                 }
         }
