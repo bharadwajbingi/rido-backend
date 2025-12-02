@@ -1,0 +1,86 @@
+package com.rido.auth.service;
+
+import com.rido.auth.dto.TokenResponse;
+import com.rido.auth.exception.AccountLockedException;
+import com.rido.auth.exception.InvalidCredentialsException;
+import com.rido.auth.model.UserEntity;
+import com.rido.auth.repo.UserRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.util.Optional;
+
+@Service
+public class LoginService {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final LoginAttemptService loginAttemptService;
+    private final TokenService tokenService;
+    private final TracingService tracingService;
+
+    // Micrometer
+    private final Counter loginSuccessCounter;
+    private final Counter loginFailureCounter;
+    private final Counter loginLockoutCounter;
+    private final Timer requestTimer;
+
+    public LoginService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            LoginAttemptService loginAttemptService,
+            TokenService tokenService,
+            TracingService tracingService,
+            MeterRegistry registry
+    ) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.loginAttemptService = loginAttemptService;
+        this.tokenService = tokenService;
+        this.tracingService = tracingService;
+
+        this.loginSuccessCounter = registry.counter("auth.login.success");
+        this.loginFailureCounter = registry.counter("auth.login.failure");
+        this.loginLockoutCounter = registry.counter("auth.login.lockout");
+        this.requestTimer = registry.timer("auth.request.duration");
+    }
+
+    public TokenResponse login(String username, String password, String deviceId, String ip, String userAgent) {
+
+        loginAttemptService.ensureNotLocked(username);
+
+        Optional<UserEntity> userOpt = userRepository.findByUsername(username);
+        if (userOpt.isEmpty()) {
+            loginFailureCounter.increment();
+            loginAttemptService.onFailure(username, ip, null);
+            throw new InvalidCredentialsException("Invalid credentials");
+        }
+
+        UserEntity user = userOpt.get();
+
+        if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now())) {
+            loginFailureCounter.increment();
+            loginLockoutCounter.increment();
+            throw new AccountLockedException("Account locked");
+        }
+
+        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+            loginFailureCounter.increment();
+            loginAttemptService.onFailure(username, ip, user);
+            throw new InvalidCredentialsException("Invalid credentials");
+        }
+
+        loginAttemptService.onSuccess(username, ip, user);
+        loginSuccessCounter.increment();
+
+        tracingService.tagCurrentSpan(user.getId(), deviceId, ip, null);
+
+        return requestTimer.record(() ->
+                tokenService.createTokens(user.getId(), user.getRole(), deviceId, ip, userAgent)
+        );
+    }
+}
