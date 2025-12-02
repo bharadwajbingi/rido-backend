@@ -40,6 +40,12 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity
     List<RefreshTokenEntity> findActiveByUserId(@Param("userId") UUID userId);
 
     // ============================================================
+    // FIND OLDEST ACTIVE SESSIONS (for limit enforcement)
+    // ============================================================
+    @Query("SELECT r FROM RefreshTokenEntity r WHERE r.userId = :userId AND r.revoked = false ORDER BY r.createdAt ASC")
+    List<RefreshTokenEntity> findActiveByUserIdOrderByCreatedAtAsc(@Param("userId") UUID userId);
+
+    // ============================================================
     // SIMPLE ACTIVE CHECK
     // ============================================================
     List<RefreshTokenEntity> findByUserIdAndRevokedFalse(UUID userId);

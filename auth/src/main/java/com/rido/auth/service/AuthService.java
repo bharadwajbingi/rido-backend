@@ -52,6 +52,7 @@ public class AuthService {
 
     private final int maxFailedAttempts;
     private final long lockoutDurationSeconds;
+    private final int maxActiveSessions;
 
     // Micrometer
     private final Counter loginSuccessCounter;
@@ -70,6 +71,7 @@ public class AuthService {
             JwtConfig jwtConfig,
             @Value("${auth.login.max-failed-attempts:5}") int maxFailedAttempts,
             @Value("${auth.login.lockout-duration-seconds:300}") long lockoutDurationSeconds,
+            @Value("${auth.login.max-active-sessions:10}") int maxActiveSessions,
             TokenBlacklistService tokenBlacklistService,
             JwtKeyStore keyStore,
             MeterRegistry registry
@@ -86,6 +88,7 @@ public class AuthService {
 
         this.maxFailedAttempts = maxFailedAttempts;
         this.lockoutDurationSeconds = lockoutDurationSeconds;
+        this.maxActiveSessions = maxActiveSessions;
 
         loginSuccessCounter = registry.counter("auth.login.success");
         loginFailureCounter = registry.counter("auth.login.failure");
@@ -239,6 +242,17 @@ public class AuthService {
     // CREATE TOKENS
     // ==========================================================================================
     private TokenResponse createTokens(UUID userId, String role, String deviceId, String ip, String userAgent) {
+
+        // Enforce max active sessions limit
+        List<RefreshTokenEntity> activeSessions = refreshTokenRepository.findActiveByUserIdOrderByCreatedAtAsc(userId);
+        if (activeSessions.size() >= maxActiveSessions) {
+            int tokensToRemove = activeSessions.size() - maxActiveSessions + 1;
+            for (int i = 0; i < tokensToRemove; i++) {
+                RefreshTokenEntity toRevoke = activeSessions.get(i);
+                toRevoke.setRevoked(true);
+                refreshTokenRepository.save(toRevoke);
+            }
+        }
 
         Instant now = Instant.now().plusMillis(5);
         Instant accessExp = now.plusSeconds(accessTtlSeconds);
