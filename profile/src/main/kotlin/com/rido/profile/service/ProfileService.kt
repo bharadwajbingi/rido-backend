@@ -14,7 +14,8 @@ import java.time.Instant
 @Service
 class ProfileService(
     private val userProfileRepository: UserProfileRepository,
-    private val auditLogRepository: AuditLogRepository
+    private val auditLogRepository: AuditLogRepository,
+    private val storageService: StorageService
 ) {
 
     fun getProfile(userId: Long): Mono<UserProfileResponse> {
@@ -39,6 +40,13 @@ class ProfileService(
                             .thenReturn(saved.toResponse())
                     }
             }
+    }
+
+    fun generatePhotoUploadUrl(userId: Long): Mono<String> {
+        // In a real app, we'd check if the user exists first.
+        // We'll generate a path like: users/{userId}/profile-photo.jpg
+        val fileName = "users/$userId/profile-photo.jpg"
+        return storageService.generateSignedUrl(fileName, "image/jpeg")
     }
 
     private fun logAudit(actorId: Long, action: String, entity: String, entityId: String, metadata: String): Mono<AuditLog> {

@@ -4,6 +4,7 @@ import com.rido.profile.dto.UpdateProfileRequest
 import com.rido.profile.dto.UserProfileResponse
 import com.rido.profile.service.ProfileService
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
@@ -28,5 +29,13 @@ class ProfileController(
         @RequestBody request: UpdateProfileRequest
     ): Mono<UserProfileResponse> {
         return profileService.updateProfile(userId, request)
+    }
+
+    @PostMapping("/me/photo")
+    fun uploadPhoto(
+        @RequestHeader("X-User-ID") userId: Long
+    ): Mono<Map<String, String>> {
+        return profileService.generatePhotoUploadUrl(userId)
+            .map { url -> mapOf("uploadUrl" to url) }
     }
 }
