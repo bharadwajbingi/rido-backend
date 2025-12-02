@@ -13,6 +13,9 @@ import org.springframework.transaction.annotation.Transactional
 import reactor.core.publisher.Mono
 import java.time.Instant
 
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.Cacheable
+
 @Service
 class ProfileService(
     private val userProfileRepository: UserProfileRepository,
@@ -21,6 +24,7 @@ class ProfileService(
     private val eventProducer: ProfileEventProducer
 ) {
 
+    @Cacheable(value = ["user_profiles"], key = "#userId")
     fun getProfile(userId: Long): Mono<UserProfileResponse> {
         return userProfileRepository.findByUserId(userId)
             .map { it.toResponse() }
@@ -28,6 +32,7 @@ class ProfileService(
     }
 
     @Transactional
+    @CacheEvict(value = ["user_profiles"], key = "#userId")
     fun updateProfile(userId: Long, request: UpdateProfileRequest): Mono<UserProfileResponse> {
         return userProfileRepository.findByUserId(userId)
             .switchIfEmpty(Mono.error(RuntimeException("User not found")))
