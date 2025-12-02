@@ -83,7 +83,7 @@ public class AuthController {
 
         rateLimiter.checkRateLimit("register:" + ip, 10, 60);
 
-        authService.register(req.getUsername(), req.getPassword());
+        authService.register(req.getUsername(), req.getPassword(), ip);
 
         log.info("auth_register_success",
                 kv("username", req.getUsername()),

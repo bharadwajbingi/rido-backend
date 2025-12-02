@@ -3,11 +3,15 @@ package com.rido.auth.controller;
 import com.rido.auth.model.UserEntity;
 import com.rido.auth.repo.UserRepository;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+
+import com.rido.auth.service.AuditLogService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,19 +28,23 @@ public class InternalAdminController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final String setupKey;
+    private final AuditLogService auditLogService;
 
     public InternalAdminController(UserRepository userRepository,
                                    PasswordEncoder passwordEncoder,
+                                   AuditLogService auditLogService,
                                    Environment env) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.setupKey = env.getProperty("ADMIN_SETUP_KEY"); // secret injected via infra
+        this.auditLogService = auditLogService;
     }
 
     @PostMapping("/admin/create")
     public ResponseEntity<?> createAdmin(
             @RequestHeader(value = "X-SYSTEM-KEY", required = false) String key,
-            @RequestBody Map<String, String> body
+            @RequestBody Map<String, String> body,
+            HttpServletRequest request
     ) {
         // --------------------------------------------------------------------------------------
         // Validate internal key
@@ -78,6 +86,10 @@ public class InternalAdminController {
         userRepository.save(admin);
 
         log.info("internal_admin_created", Map.of("username", username));
+
+        // Audit logging
+        String ip = request.getRemoteAddr();
+        auditLogService.logAdminCreation(null, "system", username, ip);
 
         return ResponseEntity.ok(Map.of("status", "ok"));
     }

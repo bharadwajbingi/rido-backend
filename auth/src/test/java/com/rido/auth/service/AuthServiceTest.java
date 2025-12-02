@@ -39,12 +39,15 @@ class AuthServiceTest {
         // Arrange
         String username = "testuser";
         String password = "password";
+        String ip = "127.0.0.1";
+        UserEntity mockUser = new UserEntity();
+        when(userRegistrationService.register(username, password, ip)).thenReturn(mockUser);
 
         // Act
-        authService.register(username, password);
+        authService.register(username, password, ip);
 
         // Assert
-        verify(userRegistrationService).register(username, password);
+        verify(userRegistrationService).register(username, password, ip);
     }
 
     @Test

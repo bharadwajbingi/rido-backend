@@ -2,7 +2,9 @@ package com.rido.auth.service;
 
 import com.rido.auth.exception.InvalidCredentialsException;
 import com.rido.auth.model.RefreshTokenEntity;
+import com.rido.auth.model.UserEntity;
 import com.rido.auth.repo.RefreshTokenRepository;
+import com.rido.auth.repo.UserRepository;
 import com.rido.auth.util.HashUtils;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -15,6 +17,8 @@ public class LogoutService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final TokenBlacklistService tokenBlacklistService;
     private final TracingService tracingService;
+    private final AuditLogService auditLogService;
+    private final UserRepository userRepository;
 
     // Micrometer
     private final Counter logoutSuccessCounter;
@@ -24,11 +28,15 @@ public class LogoutService {
             RefreshTokenRepository refreshTokenRepository,
             TokenBlacklistService tokenBlacklistService,
             TracingService tracingService,
+            AuditLogService auditLogService,
+            UserRepository userRepository,
             MeterRegistry registry
     ) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.tokenBlacklistService = tokenBlacklistService;
         this.tracingService = tracingService;
+        this.auditLogService = auditLogService;
+        this.userRepository = userRepository;
 
         this.logoutSuccessCounter = registry.counter("auth.logout.ok");
         this.requestTimer = registry.timer("auth.request.duration");
@@ -59,5 +67,10 @@ public class LogoutService {
             refreshTokenRepository.save(rt);
             logoutSuccessCounter.increment();
         });
+
+        // Audit logging
+        UserEntity user = userRepository.findById(rt.getUserId()).orElse(null);
+        String username = user != null ? user.getUsername() : "unknown";
+        auditLogService.logLogout(rt.getUserId(), username, rt.getIp(), rt.getDeviceId());
     }
 }

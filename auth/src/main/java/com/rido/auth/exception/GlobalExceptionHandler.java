@@ -1,5 +1,7 @@
 package com.rido.auth.exception;
 
+import com.rido.auth.dto.ErrorResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -7,91 +9,92 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
-import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
-
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
-    private Map<String, Object> body(HttpStatus status, String message) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("timestamp", Instant.now().toString());
-        map.put("status", status.value());
-        map.put("error", message);
-        return map;
+    private ErrorResponse buildErrorResponse(HttpStatus status, String error, String message, HttpServletRequest request) {
+        String path = request != null ? request.getRequestURI() : null;
+        return new ErrorResponse(status.value(), error, message, path);
     }
 
     // ============================================
     // VALIDATION ERRORS
     // ============================================
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<?> handleValidation(MethodArgumentNotValidException e) {
-        String msg = e.getBindingResult().getFieldError().getDefaultMessage();
-        return ResponseEntity.badRequest().body(body(HttpStatus.BAD_REQUEST, msg));
+    public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException e, HttpServletRequest request) {
+        String msg = e.getBindingResult().getFieldError() != null 
+                ? e.getBindingResult().getFieldError().getDefaultMessage() 
+                : "Validation failed";
+        ErrorResponse error = buildErrorResponse(HttpStatus.BAD_REQUEST, "Validation Error", msg, request);
+        return ResponseEntity.badRequest().body(error);
     }
 
     // ============================================
     // AUTH + LOGIN EXCEPTIONS
     // ============================================
     @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<?> handleInvalidCreds(InvalidCredentialsException e) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(body(HttpStatus.UNAUTHORIZED, e.getMessage()));
+    public ResponseEntity<ErrorResponse> handleInvalidCreds(InvalidCredentialsException e, HttpServletRequest request) {
+        ErrorResponse error = buildErrorResponse(HttpStatus.UNAUTHORIZED, "Unauthorized", e.getMessage(), request);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
     @ExceptionHandler(AccountLockedException.class)
-    public ResponseEntity<?> handleLocked(AccountLockedException e) {
-        return ResponseEntity.status(HttpStatus.LOCKED)
-                .body(body(HttpStatus.LOCKED, e.getMessage()));
+    public ResponseEntity<ErrorResponse> handleLocked(AccountLockedException e, HttpServletRequest request) {
+        ErrorResponse error = buildErrorResponse(HttpStatus.LOCKED, "Account Locked", e.getMessage(), request);
+        return ResponseEntity.status(HttpStatus.LOCKED).body(error);
     }
 
     @ExceptionHandler(UsernameAlreadyExistsException.class)
-    public ResponseEntity<?> handleUsernameExists(UsernameAlreadyExistsException e) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(body(HttpStatus.CONFLICT, e.getMessage()));
+    public ResponseEntity<ErrorResponse> handleUsernameExists(UsernameAlreadyExistsException e, HttpServletRequest request) {
+        ErrorResponse error = buildErrorResponse(HttpStatus.CONFLICT, "Conflict", e.getMessage(), request);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
     // ============================================
     // REFRESH & TOKEN SECURITY
     // ============================================
     @ExceptionHandler(ReplayDetectedException.class)
-    public ResponseEntity<?> handleReplay(ReplayDetectedException e) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(body(HttpStatus.UNAUTHORIZED, e.getMessage()));
+    public ResponseEntity<ErrorResponse> handleReplay(ReplayDetectedException e, HttpServletRequest request) {
+        ErrorResponse error = buildErrorResponse(HttpStatus.UNAUTHORIZED, "Replay Detected", e.getMessage(), request);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
     @ExceptionHandler(TokenExpiredException.class)
-    public ResponseEntity<?> handleExpired(TokenExpiredException e) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(body(HttpStatus.UNAUTHORIZED, e.getMessage()));
+    public ResponseEntity<ErrorResponse> handleExpired(TokenExpiredException e, HttpServletRequest request) {
+        ErrorResponse error = buildErrorResponse(HttpStatus.UNAUTHORIZED, "Token Expired", e.getMessage(), request);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
     // ============================================
     // RATE LIMITING
     // ============================================
     @ExceptionHandler(TooManyRequestsException.class)
-    public ResponseEntity<?> handleRateLimit(TooManyRequestsException e) {
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .body(body(HttpStatus.TOO_MANY_REQUESTS, e.getMessage()));
+    public ResponseEntity<ErrorResponse> handleRateLimit(TooManyRequestsException e, HttpServletRequest request) {
+        ErrorResponse error = buildErrorResponse(HttpStatus.TOO_MANY_REQUESTS, "Too Many Requests", e.getMessage(), request);
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(error);
     }
 
     // ============================================
     // MALFORMED JSON
     // ============================================
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<?> handleBadJson(HttpMessageNotReadableException e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(body(HttpStatus.BAD_REQUEST, "Invalid or malformed JSON"));
+    public ResponseEntity<ErrorResponse> handleBadJson(HttpMessageNotReadableException e, HttpServletRequest request) {
+        ErrorResponse error = buildErrorResponse(HttpStatus.BAD_REQUEST, "Bad Request", "Invalid or malformed JSON", request);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
     // ============================================
     // FALLBACK
     // ============================================
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<?> handleGeneric(Exception e) {
+    public ResponseEntity<ErrorResponse> handleGeneric(Exception e, HttpServletRequest request) {
         e.printStackTrace(); // Log the full stack trace
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(body(HttpStatus.INTERNAL_SERVER_ERROR, "Internal error: " + e.getMessage()));
+        ErrorResponse error = buildErrorResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR, 
+                "Internal Server Error", 
+                "Internal error: " + e.getMessage(), 
+                request
+        );
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
     }
 }

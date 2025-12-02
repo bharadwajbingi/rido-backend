@@ -22,6 +22,7 @@ public class LoginService {
     private final LoginAttemptService loginAttemptService;
     private final TokenService tokenService;
     private final TracingService tracingService;
+    private final AuditLogService auditLogService;
 
     // Micrometer
     private final Counter loginSuccessCounter;
@@ -35,6 +36,7 @@ public class LoginService {
             LoginAttemptService loginAttemptService,
             TokenService tokenService,
             TracingService tracingService,
+            AuditLogService auditLogService,
             MeterRegistry registry
     ) {
         this.userRepository = userRepository;
@@ -42,6 +44,7 @@ public class LoginService {
         this.loginAttemptService = loginAttemptService;
         this.tokenService = tokenService;
         this.tracingService = tracingService;
+        this.auditLogService = auditLogService;
 
         this.loginSuccessCounter = registry.counter("auth.login.success");
         this.loginFailureCounter = registry.counter("auth.login.failure");
@@ -57,6 +60,7 @@ public class LoginService {
         if (userOpt.isEmpty()) {
             loginFailureCounter.increment();
             loginAttemptService.onFailure(username, ip, null);
+            auditLogService.logLoginFailed(username, ip, deviceId, userAgent, "Invalid credentials");
             throw new InvalidCredentialsException("Invalid credentials");
         }
 
@@ -65,17 +69,21 @@ public class LoginService {
         if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now())) {
             loginFailureCounter.increment();
             loginLockoutCounter.increment();
+            auditLogService.logLoginFailed(username, ip, deviceId, userAgent, "Account locked");
             throw new AccountLockedException("Account locked");
         }
 
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
             loginFailureCounter.increment();
             loginAttemptService.onFailure(username, ip, user);
+            auditLogService.logLoginFailed(username, ip, deviceId, userAgent, "Invalid password");
             throw new InvalidCredentialsException("Invalid credentials");
         }
 
         loginAttemptService.onSuccess(username, ip, user);
         loginSuccessCounter.increment();
+
+        auditLogService.logLoginSuccess(user.getId(), username, ip, deviceId, userAgent);
 
         tracingService.tagCurrentSpan(user.getId(), deviceId, ip, null);
 

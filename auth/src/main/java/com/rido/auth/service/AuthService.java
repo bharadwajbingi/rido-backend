@@ -1,6 +1,7 @@
 package com.rido.auth.service;
 
 import com.rido.auth.dto.TokenResponse;
+import com.rido.auth.model.UserEntity;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -23,8 +24,8 @@ public class AuthService {
         this.logoutService = logoutService;
     }
 
-    public void register(String username, String password) {
-        userRegistrationService.register(username, password);
+    public UserEntity register(String username, String password, String ip) {
+        return userRegistrationService.register(username, password, ip);
     }
 
     public TokenResponse login(String username, String password, String deviceId, String ip, String userAgent) {

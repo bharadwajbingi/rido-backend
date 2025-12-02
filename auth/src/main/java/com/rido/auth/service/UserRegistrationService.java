@@ -17,13 +17,19 @@ public class UserRegistrationService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLogService;
 
-    public UserRegistrationService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserRegistrationService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            AuditLogService auditLogService
+    ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.auditLogService = auditLogService;
     }
 
-    public void register(String username, String password) {
+    public UserEntity register(String username, String password, String ip) {
         log.info("auth_register_attempt", kv("username", username));
 
         userRepository.findByUsername(username)
@@ -42,5 +48,10 @@ public class UserRegistrationService {
         userRepository.save(user);
 
         log.info("auth_register_success", kv("username", username));
+
+        // Audit logging
+        auditLogService.logSignup(user.getId(), username, ip);
+
+        return user;
     }
 }

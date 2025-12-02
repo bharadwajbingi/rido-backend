@@ -22,6 +22,7 @@ public class RefreshTokenService {
     private final UserRepository userRepository;
     private final TokenService tokenService;
     private final TracingService tracingService;
+    private final AuditLogService auditLogService;
 
     // Micrometer
     private final Counter refreshSuccessCounter;
@@ -33,12 +34,14 @@ public class RefreshTokenService {
             UserRepository userRepository,
             TokenService tokenService,
             TracingService tracingService,
+            AuditLogService auditLogService,
             MeterRegistry registry
     ) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.userRepository = userRepository;
         this.tokenService = tokenService;
         this.tracingService = tracingService;
+        this.auditLogService = auditLogService;
 
         this.refreshSuccessCounter = registry.counter("auth.refresh.ok");
         this.refreshReplayCounter = registry.counter("auth.refresh.replay");
@@ -74,6 +77,9 @@ public class RefreshTokenService {
 
         UserEntity user = userRepository.findById(rt.getUserId())
                 .orElseThrow(() -> new InvalidCredentialsException("User no longer exists"));
+
+        // Audit logging
+        auditLogService.logRefresh(rt.getUserId(), user.getUsername(), ip, deviceId);
 
         return requestTimer.record(() ->
                 tokenService.createTokens(
