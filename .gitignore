@@ -85,6 +85,7 @@ node_modules/
 
 # Ignore build context junk
 **/Dockerfile*
+!profile/Dockerfile
 infra/.dockerignore
 
 ##############################
