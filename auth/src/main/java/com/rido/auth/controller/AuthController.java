@@ -258,6 +258,10 @@ public class AuthController {
     @GetMapping("/check-username")
     public ResponseEntity<?> checkUsername(@RequestParam String username) {
 
+        if (username.contains("\u0000")) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid username"));
+        }
+
         boolean exists = userRepository.findByUsername(username).isPresent();
 
         log.info("auth_check_username",

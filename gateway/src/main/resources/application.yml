@@ -2,6 +2,10 @@ server:
   port: 8080
 
 spring:
+  data:
+    redis:
+      host: redis
+      port: 6379
   main:
     allow-bean-definition-overriding: true
 
@@ -11,20 +15,43 @@ spring:
         locator:
           enabled: false
 
-      # ✔ correct syntax
-      default-filters:
-        - JwtAuth
-
+      # No default filters - apply per route for better control
+      
       routes:
-        - id: auth
-          uri: http://auth:8081
+        # Authenticated /auth endpoints (must come BEFORE public catch-all)
+        - id: auth-me
+          uri: https://auth:8080
+          predicates:
+            - Path=/auth/me
+          filters:
+            - JwtAuth
+            
+        - id: auth-sessions
+          uri: https://auth:8080
+          predicates:
+            - Path=/auth/sessions,/auth/sessions/**
+          filters:
+            - JwtAuth
+        
+        # Public /auth endpoints (catch-all for remaining /auth/**)
+        - id: auth-public
+          uri: https://auth:8080
           predicates:
             - Path=/auth/**
           filters:
             - RemoveRequestHeader=Cookie
+            # No JwtAuth - public endpoints (register, login, etc.)
+
+        # Internal Admin Ops (Protected by X-SYSTEM-KEY in Auth Service)
+        - id: internal-admin
+          uri: https://auth:8080
+          predicates:
+            - Path=/internal/**
+          filters:
+            - RemoveRequestHeader=Cookie
 
         - id: secure-info
-          uri: http://auth:8081
+          uri: https://auth:8080
           predicates:
             - Path=/secure/info
           filters:

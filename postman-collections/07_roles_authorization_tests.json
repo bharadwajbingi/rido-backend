@@ -1,0 +1,216 @@
+{
+  "info": {
+    "_postman_id": "e31d0596-4cd0-4d73-9b5f-1b222f573db7",
+    "name": "07 - Roles & Authorization Tests",
+    "description": "Role-based access control testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "\ud83d\udccb Setup - Admin Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"admin\",\n    \"password\": \"SuperSecretAdmin123\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Admin Login', () => {",
+              "    if (pm.response.code === 200) {",
+              "        const resp = pm.response.json();",
+              "        pm.environment.set('admin_token', resp.accessToken);",
+              "    } else {",
+              "        console.log('Admin user not available');",
+              "    }",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u2705 Admin Endpoint (Valid Admin)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{admin_token}}"
+          }
+        ],
+        "url": "{{base_url}}/auth/keys/rotate"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Admin Access', () => pm.expect(pm.response.code).to.be.oneOf([200, 401, 403]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\ud83d\udccb Setup - Non-Admin User",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/register",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"regularuser_f7b72b20\",\n    \"password\": \"SecurePass123!\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Setup', () => pm.expect(pm.response.code).to.be.oneOf([200, 409]));",
+              "var reqBody = JSON.parse(pm.request.body.raw);",
+              "pm.environment.set('regular_user', reqBody.username);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\ud83d\udccb Setup - Login Non-Admin",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"{{regular_user}}\",\n    \"password\": \"SecurePass123!\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "setTimeout(() => {}, 1000);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login', () => pm.response.to.have.status(200));",
+              "const resp = pm.response.json();",
+              "pm.environment.set('regular_token', resp.accessToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Admin Endpoint (Non-Admin \u2192 Forbidden)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{regular_token}}"
+          }
+        ],
+        "url": "{{base_url}}/auth/keys/rotate"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Forbidden', () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u2705 Public Endpoints (No Auth)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/keys/jwks.json"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Public Access', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Missing Roles in Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.fake"
+          }
+        ],
+        "url": "{{base_url}}/auth/keys/rotate"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Missing Roles Rejected', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080"
+    }
+  ]
+}

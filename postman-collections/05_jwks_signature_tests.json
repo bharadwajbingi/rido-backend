@@ -1,0 +1,235 @@
+{
+  "info": {
+    "_postman_id": "b49476ba-b1d7-4c37-a57a-1d678cb597da",
+    "name": "05 - JWKS & Signature Validation Tests",
+    "description": "JWT cryptographic validation testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "\u2705 Fetch JWKS",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/keys/jwks.json"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('JWKS Available', () => pm.response.to.have.status(200));",
+              "const jwks = pm.response.json();",
+              "pm.test('Has keys array', () => pm.expect(jwks.keys).to.be.an('array'));",
+              "pm.test('At least 1 key', () => pm.expect(jwks.keys.length).to.be.at.least(1));",
+              "pm.test('Key is RSA', () => pm.expect(jwks.keys[0].kty).to.eql('RSA'));",
+              "pm.test('Has kid', () => pm.expect(jwks.keys[0].kid).to.exist);",
+              "pm.environment.set('valid_kid', jwks.keys[0].kid);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\ud83d\udccb Setup - Create JWT for Validation Tests",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/register",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"jwttest_9fa079e4\",\n    \"password\": \"SecurePass123!\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Setup', () => pm.expect(pm.response.code).to.be.oneOf([200, 409]));",
+              "var reqBody = JSON.parse(pm.request.body.raw);",
+              "pm.environment.set('jwt_user', reqBody.username);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\ud83d\udccb Setup - Login to Get JWT",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"{{jwt_user}}\",\n    \"password\": \"SecurePass123!\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "setTimeout(() => {}, 1000);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login', () => pm.response.to.have.status(200));",
+              "const resp = pm.response.json();",
+              "pm.environment.set('valid_jwt', resp.accessToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Missing kid in JWT Header",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ0ZXN0IiwiaWF0IjoxNjAwMDAwMDAwLCJleHAiOjk5OTk5OTk5OTl9.fake"
+          }
+        ],
+        "url": "{{base_url}}/auth/me"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Missing kid Rejected', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Wrong kid in JWT Header",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6Indyb25nLWtpZCJ9.eyJzdWIiOiJ0ZXN0IiwiaWF0IjoxNjAwMDAwMDAwLCJleHAiOjk5OTk5OTk5OTl9.fake"
+          }
+        ],
+        "url": "{{base_url}}/auth/me"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Wrong kid Rejected', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Wrong Signature",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2lkIn0.eyJzdWIiOiJ0ZXN0IiwiaWF0IjoxNjAwMDAwMDAwLCJleHAiOjk5OTk5OTk5OTl9.wrongsignature"
+          }
+        ],
+        "url": "{{base_url}}/auth/me"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Wrong Signature Rejected', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Expired JWT",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ0ZXN0IiwiaWF0IjoxNjAwMDAwMDAwLCJleHAiOjE2MDAwMDAwMDF9.fake"
+          }
+        ],
+        "url": "{{base_url}}/auth/me"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Expired JWT Rejected', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Invalid JWT Header - Wrong Algorithm",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.fake"
+          }
+        ],
+        "url": "{{base_url}}/auth/me"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Wrong Algorithm Rejected', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080"
+    }
+  ]
+}

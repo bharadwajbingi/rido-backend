@@ -19,9 +19,8 @@ public class TestLoginResetService {
 
     public void resetFailures(String username) {
 
-        // Delete all attempt keys (because IP varies)
-        var keys = redis.keys("auth:login:attempts:" + username + ":*");
-        if (keys != null) keys.forEach(redis::delete);
+        // Delete attempt counter (fixed key pattern to match LoginAttemptService)
+        redis.delete("auth:login:attempts:" + username);
 
         // Delete lock flag
         redis.delete("auth:login:locked:" + username);

@@ -5,9 +5,13 @@ services:
     image: grafana/tempo:latest
     ports:
       - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
       - "3100:3100" # HTTP
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./otel/tempo.yaml:/etc/tempo.yaml
     networks:
-      - rido-net
+      - observability-net
 
   # ===========================
   # VAULT (Secrets Management)
@@ -23,13 +27,14 @@ services:
     cap_add:
       - IPC_LOCK
     networks:
-      - rido-net
+      - internal-net  # Vault accessible to services
 
   # ===========================
   # POSTGRES
   # ===========================
   postgres:
     image: postgres:15
+    container_name: postgres
     environment:
       POSTGRES_DB: ride_hailing
       POSTGRES_USER: rh_user
@@ -42,18 +47,19 @@ services:
     ports:
       - "5432:5432"
     networks:
-      - rido-net
+      - db-net  # Isolated database network
 
   # ===========================
   # REDIS
   # ===========================
   redis:
     image: redis:7
+    container_name: redis
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     ports:
       - "6379:6379"
     networks:
-      - rido-net
+      - db-net  # Redis only accessible to services
 
   # ===========================
   # AUTH SERVICE
@@ -62,6 +68,7 @@ services:
     build:
       context: ../auth
       dockerfile: Dockerfile
+    container_name: auth
     depends_on:
       postgres:
         condition: service_started
@@ -79,26 +86,43 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       JWT_REFRESH_TTL: 300
+      SPRING_CLOUD_VAULT_URI: http://vault:8200
+      SPRING_CLOUD_VAULT_TOKEN: root
+      SERVER_PORT: 8080
 
       # ===========================
       # 🔥 OPEN TELEMETRY AGENT
       # ===========================
-      JAVA_TOOL_OPTIONS: "-javaagent:/otel/opentelemetry-javaagent.jar"
+      # JAVA_TOOL_OPTIONS: "-javaagent:/otel/opentelemetry-javaagent.jar"
       OTEL_SERVICE_NAME: "auth-service"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4317"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4318"
       OTEL_TRACES_EXPORTER: "otlp"
       OTEL_METRICS_EXPORTER: "none"
       FIRST_ADMIN_USERNAME: admin
       FIRST_ADMIN_PASSWORD: SuperSecretAdmin123
       ADMIN_SETUP_KEY: InternalSecretKey
+      
+      # ===========================
+      # 🔒 mTLS SERVER CONFIG
+      # ===========================
+      SERVER_SSL_ENABLED: "true"
+      SERVER_SSL_CLIENT_AUTH: "need"
+      SERVER_SSL_CERTIFICATE: "/etc/certs/auth/auth.crt"
+      SERVER_SSL_CERTIFICATE_PRIVATE_KEY: "/etc/certs/auth/auth.key"
+      SERVER_SSL_TRUST_CERTIFICATE: "/etc/certs/ca/ca.crt"
 
     volumes:
       - ./otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar
+      - ./mtls-certs/auth:/etc/certs/auth
+      - ./mtls-certs/ca:/etc/certs/ca
 
-    ports:
-      - "8081:8081"
+    # No external ports - Auth is internal-only, accessed via Gateway
+    # ports:
+    #   - "8081:8080"
     networks:
-      - rido-net
+      - internal-net  # Service-to-service
+      - db-net  # Access to databases
+      - observability-net  # Tracing
 
   # ===========================
   # GATEWAY SERVICE
@@ -107,19 +131,34 @@ services:
     build:
       context: ../gateway
       dockerfile: Dockerfile
+    container_name: gateway
     depends_on:
       auth:
         condition: service_started
     environment:
       SPRING_MAIN_ALLOW_BEAN_DEFINITION_OVERRIDING: "true"
-      JWKS_URL: http://auth:8081/auth/keys/jwks.json
+      JWKS_URL: https://auth:8080/auth/keys/jwks.json
+      
+      # ===========================
+      # 🔒 mTLS CLIENT CONFIG
+      # ===========================
+      SPRING_CLOUD_GATEWAY_HTTPCLIENT_SSL_USE_INSECURE_TRUST_MANAGER: "false"
+      SPRING_CLOUD_GATEWAY_HTTPCLIENT_SSL_TRUSTED_X509_CERTIFICATES: "/etc/certs/ca/ca.crt"
+      SPRING_CLOUD_GATEWAY_HTTPCLIENT_SSL_KEY_STORE_TYPE: PEM
+      SPRING_CLOUD_GATEWAY_HTTPCLIENT_SSL_CERTIFICATE: "/etc/certs/gateway/gateway.crt"
+      SPRING_CLOUD_GATEWAY_HTTPCLIENT_SSL_CERTIFICATE_PRIVATE_KEY: "/etc/certs/gateway/gateway.key"
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+    volumes:
+      - ./mtls-certs/gateway:/etc/certs/gateway
+      - ./mtls-certs/ca:/etc/certs/ca
 
     ports:
       - "8080:8080"
     networks:
-      - rido-net
+      - external-net  # Internet facing
+      - internal-net  # Routes to services
+      - db-net        # Access to Redis for blacklist
 
   # ===========================
   # PROMETHEUS
@@ -131,7 +170,7 @@ services:
     ports:
       - "9090:9090"
     networks:
-      - rido-net
+      - observability-net
 
   # ===========================
   # GRAFANA
@@ -143,7 +182,7 @@ services:
     ports:
       - "3000:3000"
     networks:
-      - rido-net
+      - observability-net
 
 # ===========================
 # VOLUMES & NETWORKS
@@ -152,5 +191,20 @@ volumes:
   pgdata:
 
 networks:
-  rido-net:
+  # External network - Internet facing
+  external-net:
+    driver: bridge
+  
+  # Internal network - Service-to-service communication
+  internal-net:
+    driver: bridge
+    internal: false  # Allow outbound for Vault, JWKS
+  
+  # Database network - Data layer only
+  db-net:
+    driver: bridge
+    internal: true  # No internet access
+  
+  # Observability network - Monitoring tools
+  observability-net:
     driver: bridge

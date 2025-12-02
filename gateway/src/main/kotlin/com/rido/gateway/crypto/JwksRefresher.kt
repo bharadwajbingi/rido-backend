@@ -1,26 +1,27 @@
 package com.rido.gateway.crypto
 
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 
 @Component
 class JwksRefresher(
-    private val resolver: JwtKeyResolver
+    private val resolver: JwtKeyResolver,
+    @Qualifier("jwksWebClient") private val jwksWebClient: WebClient
 ) {
 
     private val log = LoggerFactory.getLogger(JwksRefresher::class.java)
 
-    private val client = WebClient.builder()
-        .baseUrl("http://auth:8081")
-        .build()
+    @org.springframework.beans.factory.annotation.Value("\${JWKS_URL}")
+    private lateinit var jwksUrl: String
 
     // Refresh JWKS every 10 seconds
     @Scheduled(fixedDelay = 10000)
     fun refresh() {
-        client.get()
-            .uri("/auth/keys/jwks.json")
+        jwksWebClient.get()
+            .uri(jwksUrl)
             .retrieve()
             .bodyToMono(Map::class.java)
             .subscribe(

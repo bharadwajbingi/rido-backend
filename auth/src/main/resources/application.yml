@@ -1,8 +1,13 @@
+server:
+  port: 8081
+
 spring:
-  profiles:
-    active: dev
+  application:
+    name: auth
+
   config:
     import: vault://
+
   cloud:
     vault:
       uri: http://localhost:8200
@@ -12,6 +17,58 @@ spring:
         enabled: true
         backend: secret
         default-context: auth # Matches application name
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+  datasource:
+    url: jdbc:postgresql://postgres:5432/ride_hailing
+    # username injected from Vault
+    # password injected from Vault
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+
+  data:
+    redis:
+      host: redis
+      port: 6379
+
 auth:
   login:
+    max-failed-attempts: 5
+    lockout-duration-seconds: 300
     max-active-sessions: 5
+
+jwt:
+  accessTokenTtlSeconds: ${JWT_ACCESS_TTL:300}
+  refreshTokenTtlSeconds: ${JWT_REFRESH_TTL:1209600}
+
+# ============================
+# ACTUATOR + PROMETHEUS
+# ============================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      enabled: true
+    metrics:
+      enabled: true
+
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+    tags:
+      application: auth

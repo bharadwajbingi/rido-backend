@@ -3,19 +3,20 @@ package com.rido.gateway.crypto
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 
 @Component
 class JwksLoader(
-    private val resolver: JwtKeyResolver
+    private val resolver: JwtKeyResolver,
+    @Qualifier("jwksWebClient") private val jwksWebClient: WebClient
 ) {
 
     private val log = LoggerFactory.getLogger(JwksLoader::class.java)
 
-    private val client = WebClient.builder()
-        .baseUrl("http://auth:8081")
-        .build()
+    @org.springframework.beans.factory.annotation.Value("\${JWKS_URL}")
+    private lateinit var jwksUrl: String
 
     @PostConstruct
     fun initialLoad() {
@@ -31,8 +32,8 @@ class JwksLoader(
     private fun loadKeys() {
         log.info("🔐 Loading JWKS from auth-service...")
 
-        client.get()
-            .uri("/auth/keys/jwks.json")
+        jwksWebClient.get()
+            .uri(jwksUrl)
             .retrieve()
             .bodyToMono(Map::class.java)
             .subscribe(

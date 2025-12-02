@@ -16,9 +16,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final SecurityContextFilter securityContextFilter;
+    private final com.rido.auth.security.ServiceAuthenticationFilter serviceAuthenticationFilter;
 
-    public SecurityConfig(SecurityContextFilter securityContextFilter) {
+    public SecurityConfig(SecurityContextFilter securityContextFilter,
+                          com.rido.auth.security.ServiceAuthenticationFilter serviceAuthenticationFilter) {
         this.securityContextFilter = securityContextFilter;
+        this.serviceAuthenticationFilter = serviceAuthenticationFilter;
     }
 
     @Bean
@@ -46,8 +49,11 @@ public class SecurityConfig {
             .httpBasic(httpBasic -> httpBasic.disable())
             .formLogin(form -> form.disable());
 
-        // 🔥 ADD CUSTOM SECURITY CONTEXT FILTER
-        http.addFilterBefore(securityContextFilter, UsernamePasswordAuthenticationFilter.class);
+        // 🔥 ADD CUSTOM SECURITY CONTEXT FILTERS
+        // Service auth filter runs first to authenticate service-to-service calls
+        http.addFilterBefore(serviceAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        // Security context filter runs after to extract user context from headers
+        http.addFilterAfter(securityContextFilter, com.rido.auth.security.ServiceAuthenticationFilter.class);
 
         return http.build();
     }

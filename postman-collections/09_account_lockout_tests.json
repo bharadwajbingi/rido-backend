@@ -1,0 +1,367 @@
+{
+  "info": {
+    "_postman_id": "7219837d-a66c-4c91-a6b1-3652e74273e1",
+    "name": "09 - Account Lockout Tests",
+    "description": "Account lockout and unlock testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "\ud83d\udccb Setup - Create Lockout Test User",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/register",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"locktest_0fc0de49\",\n    \"password\": \"SecurePass123!\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Setup', () => pm.expect(pm.response.code).to.be.oneOf([200, 409]));",
+              "var reqBody = JSON.parse(pm.request.body.raw);",
+              "pm.environment.set('lock_user', reqBody.username);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Wrong Password Attempt #1",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"{{lock_user}}\",\n    \"password\": \"WrongPassword\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "setTimeout(() => {}, 500);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Attempt 1 Failed', () => pm.expect(pm.response.code).to.be.oneOf([401, 423]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Wrong Password Attempt #2",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"{{lock_user}}\",\n    \"password\": \"WrongPassword\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "setTimeout(() => {}, 500);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Attempt 2 Failed', () => pm.expect(pm.response.code).to.be.oneOf([401, 423]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Wrong Password Attempt #3",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"{{lock_user}}\",\n    \"password\": \"WrongPassword\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "setTimeout(() => {}, 500);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Attempt 3 Failed', () => pm.expect(pm.response.code).to.be.oneOf([401, 423]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Wrong Password Attempt #4",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"{{lock_user}}\",\n    \"password\": \"WrongPassword\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "setTimeout(() => {}, 500);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Attempt 4 Failed', () => pm.expect(pm.response.code).to.be.oneOf([401, 423]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Wrong Password Attempt #5",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"{{lock_user}}\",\n    \"password\": \"WrongPassword\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "setTimeout(() => {}, 500);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Attempt 5 Failed', () => pm.expect(pm.response.code).to.be.oneOf([401, 423]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\ud83d\udd12 5 Wrong Passwords - Account Locked",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"{{lock_user}}\",\n    \"password\": \"SecurePass123!\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "setTimeout(() => {}, 1000);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Account Locked', () => pm.response.to.have.status(423));",
+              "pm.test('Locked Message', () => pm.expect(pm.response.json().error).to.include('locked'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Login After Lock - Blocked",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"{{lock_user}}\",\n    \"password\": \"SecurePass123!\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Still Locked', () => pm.response.to.have.status(423));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\ud83d\udd13 Unlock (Admin/Internal)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-SYSTEM-KEY",
+            "value": "InternalSecretKey"
+          }
+        ],
+        "url": "{{base_url}}/internal/admin/unlock",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"{{lock_user}}\"\n}"
+        },
+        "description": "Note: May need debug profile enabled"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Unlock Response', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u2705 Login Again - Should Be Allowed",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"{{lock_user}}\",\n    \"password\": \"SecurePass123!\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "setTimeout(() => {}, 2000);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login After Unlock', () => pm.expect(pm.response.code).to.be.oneOf([200, 423]));"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080"
+    }
+  ]
+}

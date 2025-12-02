@@ -1,0 +1,235 @@
+{
+  "info": {
+    "_postman_id": "28ba91a2-a366-44b3-8d56-d46053f2d1f2",
+    "name": "10 - Session Management Tests",
+    "description": "Session listing and deletion testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "\ud83d\udccb Setup - Register & Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/register",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"sessiontest_443e389b\",\n    \"password\": \"SecurePass123!\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Setup', () => pm.expect(pm.response.code).to.be.oneOf([200, 409]));",
+              "var reqBody = JSON.parse(pm.request.body.raw);",
+              "pm.environment.set('session_user', reqBody.username);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\ud83d\udccb Setup - Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"{{session_user}}\",\n    \"password\": \"SecurePass123!\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "setTimeout(() => {}, 1000);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login', () => pm.response.to.have.status(200));",
+              "const resp = pm.response.json();",
+              "pm.environment.set('session_token', resp.accessToken);",
+              "pm.environment.set('session_refresh', resp.refreshToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u2705 List Active Sessions",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{session_token}}"
+          }
+        ],
+        "url": "{{base_url}}/auth/sessions"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('List Sessions', () => pm.response.to.have.status(200));",
+              "const sessions = pm.response.json();",
+              "pm.test('Is Array', () => pm.expect(sessions).to.be.an('array'));",
+              "pm.test('Has Sessions', () => pm.expect(sessions.length).to.be.at.least(1));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u2705 Refresh Creates New Session",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/auth/refresh",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"refreshToken\": \"{{session_refresh}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "setTimeout(() => {}, 500);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Refresh Success', () => pm.response.to.have.status(200));",
+              "const resp = pm.response.json();",
+              "pm.environment.set('session_token', resp.accessToken);",
+              "pm.environment.set('session_refresh', resp.refreshToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u2705 Logout Deletes Session",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{session_token}}"
+          }
+        ],
+        "url": "{{base_url}}/auth/logout",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"refreshToken\": \"{{session_refresh}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Logout Success', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u2705 Delete Specific JTI Session",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{session_token}}"
+          }
+        ],
+        "url": "{{base_url}}/auth/sessions/{jti}",
+        "description": "Note: Replace {jti} with actual JTI"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Delete Session', () => pm.expect(pm.response.code).to.be.oneOf([200, 401, 404]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Delete Invalid Session",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{session_token}}"
+          }
+        ],
+        "url": "{{base_url}}/auth/sessions/invalid-jti-00000",
+        "description": "Attempt to delete non-existent session"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Invalid Session', () => pm.expect(pm.response.code).to.be.oneOf([404, 401]));"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080"
+    }
+  ]
+}

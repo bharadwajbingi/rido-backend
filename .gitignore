@@ -113,6 +113,12 @@ auth/auth-tests*.json
 
 /tmp/
 *.pid
+*.log
+*.txt
+
+# Infra logs
+infra/*.log
+infra/*.txt
 
 ##############################
 # Secrets (VERY IMPORTANT)
@@ -122,9 +128,23 @@ auth/auth-tests*.json
 .env
 *.env
 
-# Local credentials
+# Local credentials (already merged into main application.yml)
 auth/src/main/resources/application-dev.yml
 gateway/src/main/resources/application-dev.yml
+
+##############################
+# Test Results & Reports
+##############################
+
+# Postman test run results
+*.postman_test_run.json
+*Test*.postman_test_run.json
+
+# Generated test collections (keep source generators, ignore generated JSONs)
+# Uncomment if you want to regenerate collections every time:
+# postman-collections/*.json
+# !postman-collections/COMPLETE*.json
+# !postman-collections/README.md
 
 ##############################
 # Flyway / Database
@@ -134,7 +154,12 @@ gateway/src/main/resources/application-dev.yml
 *.sql
 *.db
 *.dump
+
+##############################
+# Archives & Backups
+##############################
 zip-tool/
 *.zip
 *.rar
 *.7z
+project_clean.zip

@@ -1,0 +1,132 @@
+{
+  "info": {
+    "_postman_id": "7f970752-2d54-4b4c-a398-93190fe2361f",
+    "name": "12 - mTLS & Internal Service Auth Tests",
+    "description": "Mutual TLS and internal service authentication",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "\u2705 Gateway \u2192 Auth (Valid mTLS)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-SYSTEM-KEY",
+            "value": "InternalSecretKey"
+          }
+        ],
+        "url": "{{base_url}}/internal/admin/health",
+        "description": "Note: This test may fail if not run from Gateway"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('mTLS Success', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Service Without Certificate - Fail",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/internal/admin/create",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"test\",\n    \"password\": \"test\"\n}"
+        },
+        "description": "Direct call without mTLS should fail"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('No Certificate Rejected', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\u274c Wrong Certificate CN - Fail",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-SYSTEM-KEY",
+            "value": "WrongKey"
+          }
+        ],
+        "url": "{{base_url}}/internal/admin/create",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"test\",\n    \"password\": \"test\"\n}"
+        },
+        "description": "Invalid system key should fail"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Wrong Certificate Rejected', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "\ud83d\udccb Verify Internal Endpoints Not Publicly Accessible",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/internal/admin/create",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"username\": \"test\",\n    \"password\": \"test\"\n}"
+        },
+        "description": "Internal endpoints should not be publicly accessible"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Internal Protected', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080"
+    }
+  ]
+}

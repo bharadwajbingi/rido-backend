@@ -1,0 +1,4 @@
+*.key
+ca.srl
+*.csr
+*.ext
