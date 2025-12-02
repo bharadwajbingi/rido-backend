@@ -44,6 +44,7 @@ public class RefreshTokenEntity {
     // ============================
 
     public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
     public UUID getUserId() { return userId; }
     public void setUserId(UUID userId) { this.userId = userId; }
@@ -70,4 +71,5 @@ public class RefreshTokenEntity {
     public void setJti(UUID jti) { this.jti = jti; }
 
     public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

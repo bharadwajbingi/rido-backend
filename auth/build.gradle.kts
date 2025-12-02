@@ -63,6 +63,7 @@ implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
     // TESTS
     // ----------------------------
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("com.h2database:h2")
 
     implementation("net.logstash.logback:logstash-logback-encoder:7.4")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
