@@ -29,6 +29,10 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+
+
 @RestController
 @RequestMapping("/auth")
 @Timed(value = "auth.request.duration", extraTags = {"module", "auth"})
@@ -317,6 +321,8 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("status", "revoked"));
     }
 
+
+
     // =====================================================
     // HELPERS
     // =====================================================
@@ -334,4 +340,6 @@ public class AuthController {
                 r.getExpiresAt()
         );
     }
+
+
 }

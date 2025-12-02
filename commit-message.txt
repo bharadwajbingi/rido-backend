@@ -1,0 +1,23 @@
+fix(build): configure Kotlin JVM target to match Java toolchain version
+
+- Added explicit Kotlin JVM target configuration (JVM_21) in gateway build.gradle.kts
+- This fixes "Cannot inline bytecode built with JVM target 17 into bytecode 
+  that is being built with JVM target 1.8" compilation error
+- Kotlin compiler was defaulting to JVM 1.8 without explicit configuration
+- Now matches Java toolchain version 21 for consistency
+
+Testing:
+- All 8 test scripts passed successfully in WSL
+- Security context propagation: PASSED
+- JWT validation (all invalid token scenarios): PASSED
+- Refresh token rotation: PASSED
+- Refresh token hashing verification (via Docker PostgreSQL): PASSED
+- Key rotation admin controls: PASSED
+- End-to-end secure flows: PASSED
+
+Impact:
+- Gateway module now builds successfully without JVM target mismatch errors
+- All services compile with consistent JVM target (21)
+- Full test suite validates authentication and security functionality
+
+Breaking Changes: None

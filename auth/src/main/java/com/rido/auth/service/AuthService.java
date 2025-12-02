@@ -249,6 +249,8 @@ public class AuthService {
 
         String access = Jwts.builder()
                 .setHeaderParam("kid", kid)
+                .setIssuer("rido-auth-service")
+                .setAudience("rido-api")
                 .setSubject(userId.toString())
                 .claim("roles", List.of(role))
                 .setIssuedAt(Date.from(now))

@@ -60,6 +60,8 @@ services:
 
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
       JWT_REFRESH_TTL: 300
 
       # ===========================
@@ -95,6 +97,8 @@ services:
     environment:
       SPRING_MAIN_ALLOW_BEAN_DEFINITION_OVERRIDING: "true"
       JWKS_URL: http://auth:8081/auth/keys/jwks.json
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
 
     ports:
       - "8080:8080"

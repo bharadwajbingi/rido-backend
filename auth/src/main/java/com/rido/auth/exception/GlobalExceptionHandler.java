@@ -90,7 +90,8 @@ public class GlobalExceptionHandler {
     // ============================================
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleGeneric(Exception e) {
+        e.printStackTrace(); // Log the full stack trace
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(body(HttpStatus.INTERNAL_SERVER_ERROR, "Internal error"));
+                .body(body(HttpStatus.INTERNAL_SERVER_ERROR, "Internal error: " + e.getMessage()));
     }
 }

@@ -11,3 +11,5 @@ class GatewayApplication
 fun main(args: Array<String>) {
     runApplication<GatewayApplication>(*args)
 }
+
+
