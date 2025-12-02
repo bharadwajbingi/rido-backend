@@ -57,6 +57,14 @@ spring:
           filters:
             - JwtAuth
 
+        # Profile Service Routes
+        - id: profile-service
+          uri: http://profile:8082
+          predicates:
+            - Path=/profile/**
+          filters:
+            - JwtAuth
+
 management:
   endpoints:
     web:
