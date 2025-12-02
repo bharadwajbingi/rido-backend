@@ -179,15 +179,17 @@ public class AuthController {
 
         String ip = request.getRemoteAddr();
         String deviceId = request.getHeader("X-Device-Id");
+        String userAgent = request.getHeader("User-Agent");
 
         log.info("auth_refresh_attempt",
                 kv("deviceId", deviceId),
-                kv("ip", ip)
+                kv("ip", ip),
+                kv("userAgent", userAgent)
         );
 
         rateLimiter.checkRateLimit("refresh:" + ip, 20, 60);
 
-        TokenResponse resp = authService.refresh(body.refreshToken(), deviceId, ip);
+        TokenResponse resp = authService.refresh(body.refreshToken(), deviceId, ip, userAgent);
 
         log.info("auth_refresh_success",
                 kv("ip", ip),

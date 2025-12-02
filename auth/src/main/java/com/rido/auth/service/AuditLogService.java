@@ -204,4 +204,35 @@ public class AuditLogService {
             log.error("Failed to save audit log for admin creation", e);
         }
     }
+
+    /**
+     * Log a device mismatch security event
+     */
+    public void logDeviceMismatch(UUID userId, String username, String ip, String storedDeviceId, String newDeviceId, String storedUserAgent, String newUserAgent) {
+        try {
+            AuditLog auditLog = new AuditLog();
+            auditLog.setEventType(AuditEvent.DEVICE_MISMATCH);
+            auditLog.setUserId(userId);
+            auditLog.setUsername(username);
+            auditLog.setIpAddress(ip);
+            auditLog.setDeviceId(newDeviceId);
+            auditLog.setUserAgent(newUserAgent);
+            auditLog.setSuccess(false);
+            auditLog.setFailureReason("Device/UserAgent mismatch. Expected: " + storedDeviceId + " / " + storedUserAgent);
+
+            auditLogRepository.save(auditLog);
+
+            log.warn("audit_device_mismatch",
+                    kv("userId", userId),
+                    kv("username", username),
+                    kv("ip", ip),
+                    kv("storedDeviceId", storedDeviceId),
+                    kv("newDeviceId", newDeviceId),
+                    kv("storedUserAgent", storedUserAgent),
+                    kv("newUserAgent", newUserAgent)
+            );
+        } catch (Exception e) {
+            log.error("Failed to save audit log for device mismatch", e);
+        }
+    }
 }

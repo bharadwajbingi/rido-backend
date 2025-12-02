@@ -38,5 +38,10 @@ public enum AuditEvent {
     /**
      * New admin account was created
      */
-    ADMIN_CREATION
+    ADMIN_CREATION,
+
+    /**
+     * Refresh token rejected due to device or user agent mismatch
+     */
+    DEVICE_MISMATCH
 }

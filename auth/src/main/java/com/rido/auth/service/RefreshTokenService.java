@@ -1,6 +1,7 @@
 package com.rido.auth.service;
 
 import com.rido.auth.dto.TokenResponse;
+import com.rido.auth.exception.DeviceMismatchException;
 import com.rido.auth.exception.InvalidCredentialsException;
 import com.rido.auth.exception.TokenExpiredException;
 import com.rido.auth.model.RefreshTokenEntity;
@@ -48,7 +49,7 @@ public class RefreshTokenService {
         this.requestTimer = registry.timer("auth.request.duration");
     }
 
-    public TokenResponse refresh(String refreshToken, String deviceId, String ip) {
+    public TokenResponse refresh(String refreshToken, String deviceId, String ip, String userAgent) {
 
         String hash = HashUtils.sha256(refreshToken);
 
@@ -56,6 +57,26 @@ public class RefreshTokenService {
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
 
         tracingService.tagCurrentSpan(rt.getUserId(), rt.getDeviceId(), rt.getIp(), rt.getJti());
+
+        // Device Security Check
+        if (!java.util.Objects.equals(rt.getDeviceId(), deviceId) || 
+            !java.util.Objects.equals(rt.getUserAgent(), userAgent)) {
+            
+            UserEntity user = userRepository.findById(rt.getUserId()).orElse(null);
+            String username = user != null ? user.getUsername() : "unknown";
+            
+            auditLogService.logDeviceMismatch(
+                rt.getUserId(), 
+                username, 
+                ip, 
+                rt.getDeviceId(), 
+                deviceId, 
+                rt.getUserAgent(), 
+                userAgent
+            );
+            
+            throw new DeviceMismatchException("Device or User-Agent mismatch detected");
+        }
 
         Instant now = refreshTokenRepository.getDatabaseTime();
 

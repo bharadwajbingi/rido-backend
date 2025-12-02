@@ -65,6 +65,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
+    @ExceptionHandler(DeviceMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleDeviceMismatch(DeviceMismatchException e, HttpServletRequest request) {
+        ErrorResponse error = buildErrorResponse(HttpStatus.UNAUTHORIZED, "Device Mismatch", e.getMessage(), request);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
     // ============================================
     // RATE LIMITING
     // ============================================

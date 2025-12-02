@@ -32,8 +32,8 @@ public class AuthService {
         return loginService.login(username, password, deviceId, ip, userAgent);
     }
 
-    public TokenResponse refresh(String refreshToken, String deviceId, String ip) {
-        return refreshTokenService.refresh(refreshToken, deviceId, ip);
+    public TokenResponse refresh(String refreshToken, String deviceId, String ip, String userAgent) {
+        return refreshTokenService.refresh(refreshToken, deviceId, ip, userAgent);
     }
 
     public void logout(String refreshToken, String accessToken) {

@@ -76,15 +76,16 @@ class AuthServiceTest {
         String refreshToken = "refresh-token";
         String deviceId = "device-1";
         String ip = "127.0.0.1";
+        String userAgent = "test-agent";
 
         TokenResponse expectedResponse = new TokenResponse("access", "refresh", 3600L);
-        when(refreshTokenService.refresh(refreshToken, deviceId, ip)).thenReturn(expectedResponse);
+        when(refreshTokenService.refresh(refreshToken, deviceId, ip, userAgent)).thenReturn(expectedResponse);
 
         // Act
-        TokenResponse result = authService.refresh(refreshToken, deviceId, ip);
+        TokenResponse result = authService.refresh(refreshToken, deviceId, ip, userAgent);
 
         // Assert
-        verify(refreshTokenService).refresh(refreshToken, deviceId, ip);
+        verify(refreshTokenService).refresh(refreshToken, deviceId, ip, userAgent);
         assert result == expectedResponse;
     }
 
