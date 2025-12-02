@@ -2,6 +2,8 @@ package com.rido.profile.service
 
 import com.rido.profile.dto.UpdateProfileRequest
 import com.rido.profile.dto.UserProfileResponse
+import com.rido.profile.event.ProfileEventProducer
+import com.rido.profile.event.ProfileUpdatedEvent
 import com.rido.profile.model.AuditLog
 import com.rido.profile.model.UserProfile
 import com.rido.profile.repository.AuditLogRepository
@@ -15,7 +17,8 @@ import java.time.Instant
 class ProfileService(
     private val userProfileRepository: UserProfileRepository,
     private val auditLogRepository: AuditLogRepository,
-    private val storageService: StorageService
+    private val storageService: StorageService,
+    private val eventProducer: ProfileEventProducer
 ) {
 
     fun getProfile(userId: Long): Mono<UserProfileResponse> {
@@ -37,6 +40,17 @@ class ProfileService(
                 userProfileRepository.save(updatedProfile)
                     .flatMap { saved ->
                         logAudit(userId, "UPDATE", "UserProfile", saved.id.toString(), "Updated profile details")
+                            .doOnSuccess {
+                                eventProducer.publishProfileUpdated(
+                                    ProfileUpdatedEvent(
+                                        userId = userId,
+                                        fieldsChanged = listOfNotNull(
+                                            if (request.name != null) "name" else null,
+                                            if (request.email != null) "email" else null
+                                        )
+                                    )
+                                )
+                            }
                             .thenReturn(saved.toResponse())
                     }
             }

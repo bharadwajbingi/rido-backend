@@ -2,6 +2,8 @@ package com.rido.profile.service
 
 import com.rido.profile.dto.DriverDocumentResponse
 import com.rido.profile.dto.UploadDriverDocumentRequest
+import com.rido.profile.event.DriverDocumentUploadedEvent
+import com.rido.profile.event.ProfileEventProducer
 import com.rido.profile.model.DocumentStatus
 import com.rido.profile.model.DriverDocument
 import com.rido.profile.repository.DriverDocumentRepository
@@ -12,7 +14,8 @@ import java.util.UUID
 
 @Service
 class DriverDocumentService(
-    private val documentRepository: DriverDocumentRepository
+    private val documentRepository: DriverDocumentRepository,
+    private val eventProducer: ProfileEventProducer
 ) {
 
     fun getDocuments(driverId: Long): Flux<DriverDocumentResponse> {
@@ -29,6 +32,15 @@ class DriverDocumentService(
             status = DocumentStatus.PENDING
         )
         return documentRepository.save(document)
+            .doOnSuccess { saved ->
+                eventProducer.publishDocumentUploaded(
+                    DriverDocumentUploadedEvent(
+                        driverId = driverId,
+                        documentId = saved.id.toString(),
+                        type = saved.type.name
+                    )
+                )
+            }
             .map { it.toResponse() }
     }
 

@@ -1,6 +1,9 @@
 package com.rido.profile.service
 
 import com.rido.profile.dto.DriverDocumentResponse
+import com.rido.profile.event.DriverApprovedEvent
+import com.rido.profile.event.DriverRejectedEvent
+import com.rido.profile.event.ProfileEventProducer
 import com.rido.profile.model.AuditLog
 import com.rido.profile.model.DocumentStatus
 import com.rido.profile.model.DriverDocument
@@ -14,7 +17,8 @@ import java.util.UUID
 @Service
 class AdminProfileService(
     private val documentRepository: DriverDocumentRepository,
-    private val auditLogRepository: AuditLogRepository
+    private val auditLogRepository: AuditLogRepository,
+    private val eventProducer: ProfileEventProducer
 ) {
 
     @Transactional
@@ -29,6 +33,11 @@ class AdminProfileService(
                 documentRepository.save(updatedDoc)
                     .flatMap { saved ->
                         logAudit(adminId, "APPROVE", "DriverDocument", saved.id.toString(), "Approved document")
+                            .doOnSuccess {
+                                eventProducer.publishDriverApproved(
+                                    DriverApprovedEvent(driverId = saved.driverId)
+                                )
+                            }
                             .thenReturn(saved.toResponse())
                     }
             }
@@ -47,6 +56,11 @@ class AdminProfileService(
                 documentRepository.save(updatedDoc)
                     .flatMap { saved ->
                         logAudit(adminId, "REJECT", "DriverDocument", saved.id.toString(), "Rejected document: $reason")
+                            .doOnSuccess {
+                                eventProducer.publishDriverRejected(
+                                    DriverRejectedEvent(driverId = saved.driverId, reason = reason)
+                                )
+                            }
                             .thenReturn(saved.toResponse())
                     }
             }
