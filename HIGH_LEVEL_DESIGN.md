@@ -25,12 +25,14 @@ graph TD
         Gateway --> Trips[🚕 Trips Service]
         Gateway --> Driver[👤 Driver Service]
         Gateway --> Match[⚡ Matching Service]
+        Gateway --> Profile[👤 Profile Service]
         Gateway --> Notif[🔔 Notification Service]
     end
 
     Auth --> DB[(🐘 Postgres)]
     Trips --> DB
     Driver --> DB
+    Profile --> DB
     
     Auth --> Cache[(🔴 Redis)]
     Match --> Cache
@@ -80,6 +82,24 @@ graph TD
   - 🚗 Vehicle Details Management
 - **Data Stores**:
   - `Postgres`: Driver Profiles, Documents
+
+### 👤 3.5 Profile Service
+**Unified User & Driver Profiles**
+- **Responsibilities**:
+  - 🖼️ Manage User/Driver Profiles
+  - ⭐ Ratings & Reviews
+  - ⚙️ User Preferences
+- **Data Stores**:
+  - `Postgres`: User Profiles, Ratings
+
+### 🔔 3.6 Notification Service
+**Real-Time Alerts**
+- **Responsibilities**:
+  - 📲 Push Notifications (FCM)
+  - 💬 In-App Messaging (WebSocket)
+  - 📧 Email Alerts
+- **Data Stores**:
+  - `Redis`: Pub/Sub Channels
 
 ---
 
@@ -175,7 +195,10 @@ Each microservice runs in its own **Docker Container**:
 - `https://rido-gateway.onrender.com`
 - `https://rido-trips.onrender.com`
 - `https://rido-driver.onrender.com`
+- `https://rido-driver.onrender.com`
 - `https://rido-matching.onrender.com`
+- `https://rido-profile.onrender.com`
+- `https://rido-notification.onrender.com`
 
 > Gateway routes internal traffic securely.
 
