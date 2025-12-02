@@ -152,6 +152,7 @@ gateway/src/main/resources/application-dev.yml
 
 # Ignore generated DB files, backups
 *.sql
+!**/src/main/resources/db/migration/*.sql
 *.db
 *.dump
 

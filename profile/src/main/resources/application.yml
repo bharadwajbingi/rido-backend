@@ -1,0 +1,24 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: profile-service
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/ride_hailing
+    username: rh_user
+    password: rh_password
+    pool:
+      initial-size: 5
+      max-size: 20
+  flyway:
+    url: jdbc:postgresql://localhost:5432/ride_hailing
+    user: rh_user
+    password: rh_password
+    locations: classpath:db/migration
+    enabled: true
+
+logging:
+  level:
+    org.springframework.r2dbc: INFO
+    org.flywaydb: INFO

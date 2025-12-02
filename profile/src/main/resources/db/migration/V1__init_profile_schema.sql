@@ -1,0 +1,2 @@
+-- Initial schema for Profile Service
+-- Tables: user_profiles, rider_addresses, driver_documents, driver_stats, audit_logs
