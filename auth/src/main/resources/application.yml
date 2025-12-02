@@ -1,6 +1,17 @@
 spring:
   profiles:
     active: dev
+  config:
+    import: vault://
+  cloud:
+    vault:
+      uri: http://localhost:8200
+      authentication: TOKEN
+      token: root # Dev mode only
+      kv:
+        enabled: true
+        backend: secret
+        default-context: auth # Matches application name
 auth:
   login:
     max-active-sessions: 5
