@@ -8,6 +8,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.security.access.AccessDeniedException;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -87,6 +88,15 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleBadJson(HttpMessageNotReadableException e, HttpServletRequest request) {
         ErrorResponse error = buildErrorResponse(HttpStatus.BAD_REQUEST, "Bad Request", "Invalid or malformed JSON", request);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    // ============================================
+    // ACCESS DENIED
+    // ============================================
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException e, HttpServletRequest request) {
+        ErrorResponse error = buildErrorResponse(HttpStatus.FORBIDDEN, "Forbidden", "Access Denied", request);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
     }
 
     // ============================================

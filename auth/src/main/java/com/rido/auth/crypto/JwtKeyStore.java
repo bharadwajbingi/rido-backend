@@ -11,6 +11,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import io.jsonwebtoken.Claims;
 
 @Component
 public class JwtKeyStore {
@@ -171,5 +172,15 @@ public class JwtKeyStore {
         });
 
         return jwks;
+    }
+
+    public io.jsonwebtoken.SigningKeyResolver getResolver() {
+        return new io.jsonwebtoken.SigningKeyResolverAdapter() {
+            @Override
+            public Key resolveSigningKey(io.jsonwebtoken.JwsHeader header, Claims claims) {
+                String kid = header.getKeyId();
+                return getPublic(kid);
+            }
+        };
     }
 }

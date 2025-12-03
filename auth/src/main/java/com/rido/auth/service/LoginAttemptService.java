@@ -111,6 +111,15 @@ public class LoginAttemptService {
                 kv("attempts", attempts));
 
         if (attempts != null && attempts > MAX_ATTEMPTS) {
+            
+            // ⭐ SKIP LOCKING FOR ADMINS
+            if (user != null && "ADMIN".equals(user.getRole())) {
+                logger.warn("admin_login_failure_threshold_exceeded", 
+                        kv("username", username), 
+                        kv("attempts", attempts),
+                        kv("action", "skip_lock"));
+                return;
+            }
 
             redis.opsForValue().set("auth:login:locked:" + username, "1", LOCK_DURATION);
 

@@ -54,9 +54,20 @@ public class LoginService {
 
     public TokenResponse login(String username, String password, String deviceId, String ip, String userAgent) {
 
-        loginAttemptService.ensureNotLocked(username);
-
         Optional<UserEntity> userOpt = userRepository.findByUsername(username);
+
+        // 1. Check locks (SKIP FOR ADMINS)
+        if (userOpt.isPresent()) {
+            UserEntity user = userOpt.get();
+            if (!"ADMIN".equals(user.getRole())) {
+                loginAttemptService.ensureNotLocked(username);
+            }
+        } else {
+            // Unknown user -> enforce lock check to prevent DoS on non-existent accounts
+            loginAttemptService.ensureNotLocked(username);
+        }
+
+        // 2. User Not Found
         if (userOpt.isEmpty()) {
             loginFailureCounter.increment();
             loginAttemptService.onFailure(username, ip, null);
@@ -66,7 +77,8 @@ public class LoginService {
 
         UserEntity user = userOpt.get();
 
-        if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now())) {
+        // 3. Check DB Lock (SKIP FOR ADMINS)
+        if (!"ADMIN".equals(user.getRole()) && user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now())) {
             loginFailureCounter.increment();
             loginLockoutCounter.increment();
             auditLogService.logLoginFailed(username, ip, deviceId, userAgent, "Account locked");

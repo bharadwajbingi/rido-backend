@@ -1,19 +1,17 @@
 package com.rido.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
 
-@Data
-public class LoginRequest {
 
+public record LoginRequest(
     @NotBlank(message = "Username cannot be empty")
-    private String username;
+    String username,
 
     @NotBlank(message = "Password cannot be empty")
-    private String password;
+    String password,
 
     // OPTIONAL BUT NEEDED FOR SESSION TRACKING
-    private String deviceId;
-    private String ip;
-    private String userAgent;
-}
+    String deviceId,
+    String ip,
+    String userAgent
+) {}

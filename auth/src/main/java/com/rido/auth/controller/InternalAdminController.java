@@ -12,6 +12,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import com.rido.auth.service.AuditLogService;
+import com.rido.auth.exception.UsernameAlreadyExistsException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,8 +71,7 @@ public class InternalAdminController {
         // Check duplicates
         // --------------------------------------------------------------------------------------
         if (userRepository.findByUsername(username).isPresent()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", "exists"));
+            throw new UsernameAlreadyExistsException("Admin already exists");
         }
 
         // --------------------------------------------------------------------------------------

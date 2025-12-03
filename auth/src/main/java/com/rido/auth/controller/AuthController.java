@@ -29,10 +29,6 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-
-
 @RestController
 @RequestMapping("/auth")
 @Timed(value = "auth.request.duration", extraTags = {"module", "auth"})
@@ -67,6 +63,26 @@ public class AuthController {
     }
 
     // =====================================================
+    // CHECK USERNAME AVAILABILITY
+    // =====================================================
+    @GetMapping("/check-username")
+    public ResponseEntity<?> checkUsername(@RequestParam String username) {
+
+        if (username.contains("\u0000")) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid username"));
+        }
+
+        boolean exists = userRepository.findByUsername(username).isPresent();
+
+        log.info("auth_check_username",
+                kv("username", username),
+                kv("available", !exists)
+        );
+
+        return ResponseEntity.ok(Map.of("available", !exists));
+    }
+
+    // =====================================================
     // REGISTER
     // =====================================================
     @PostMapping("/register")
@@ -76,19 +92,13 @@ public class AuthController {
     ) {
         String ip = request.getRemoteAddr();
 
-        log.info("auth_register_request",
-                kv("username", req.getUsername()),
-                kv("ip", ip)
-        );
+        log.info("auth_register_request", kv("username", req.username()), kv("ip", ip));
 
         rateLimiter.checkRateLimit("register:" + ip, 10, 60);
 
-        authService.register(req.getUsername(), req.getPassword(), ip);
+        authService.register(req.username(), req.password(), ip);
 
-        log.info("auth_register_success",
-                kv("username", req.getUsername()),
-                kv("ip", ip)
-        );
+        log.info("auth_register_success", kv("username", req.username()), kv("ip", ip));
 
         return ResponseEntity.ok(Map.of("status", "ok"));
     }
@@ -102,7 +112,7 @@ public class AuthController {
             HttpServletRequest request
     ) {
         String ip = request.getRemoteAddr();
-        String username = req.getUsername();
+        String username = req.username();
         String deviceId = request.getHeader("X-Device-Id");
         String userAgent = request.getHeader("User-Agent");
 
@@ -116,10 +126,9 @@ public class AuthController {
         loginAttemptService.ensureNotLocked(username);
 
         try {
-
             TokenResponse resp = authService.login(
                     username,
-                    req.getPassword(),
+                    req.password(),
                     deviceId,
                     ip,
                     userAgent
@@ -127,20 +136,12 @@ public class AuthController {
 
             rateLimiter.checkRateLimit("login:ip:" + ip, 50, 60);
 
-            log.info("auth_login_success",
-                    kv("username", username),
-                    kv("ip", ip),
-                    kv("deviceId", deviceId)
-            );
+            log.info("auth_login_success", kv("username", username), kv("ip", ip));
 
             return ResponseEntity.ok(resp);
 
         } catch (InvalidCredentialsException e) {
-
-            log.warn("auth_login_failure",
-                    kv("username", username),
-                    kv("ip", ip)
-            );
+            log.warn("auth_login_failure", kv("username", username), kv("ip", ip));
 
             loginAttemptService.onFailure(
                     username,
@@ -149,23 +150,17 @@ public class AuthController {
             );
 
             rateLimiter.checkRateLimit("login:user:" + username, 10, 300);
-
             throw e;
 
         } catch (AccountLockedException e) {
-
-            log.error("auth_login_account_locked",
-                    kv("username", username),
-                    kv("ip", ip)
-            );
-
+            log.error("auth_login_account_locked", kv("username", username), kv("ip", ip));
             rateLimiter.checkRateLimit("login:user:" + username, 10, 300);
             throw e;
         }
     }
 
     // =====================================================
-    // REFRESH TOKEN (ROTATION)
+    // REFRESH TOKEN
     // =====================================================
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(
@@ -181,20 +176,13 @@ public class AuthController {
         String deviceId = request.getHeader("X-Device-Id");
         String userAgent = request.getHeader("User-Agent");
 
-        log.info("auth_refresh_attempt",
-                kv("deviceId", deviceId),
-                kv("ip", ip),
-                kv("userAgent", userAgent)
-        );
+        log.info("auth_refresh_attempt", kv("ip", ip), kv("deviceId", deviceId));
 
         rateLimiter.checkRateLimit("refresh:" + ip, 20, 60);
 
         TokenResponse resp = authService.refresh(body.refreshToken(), deviceId, ip, userAgent);
 
-        log.info("auth_refresh_success",
-                kv("ip", ip),
-                kv("deviceId", deviceId)
-        );
+        log.info("auth_refresh_success", kv("ip", ip), kv("deviceId", deviceId));
 
         return ResponseEntity.ok(resp);
     }
@@ -227,14 +215,14 @@ public class AuthController {
     }
 
     // =====================================================
-    // /me
+    // CURRENT USER /me
     // =====================================================
     @GetMapping("/me")
-    public ResponseEntity<?> me(
-            @RequestHeader(name = "X-User-ID", required = false) String userId
-    ) {
-        if (userId == null || userId.isBlank()) {
-            log.warn("auth_me_unauthorized_missing_userId");
+    public ResponseEntity<?> me(HttpServletRequest req) {
+        String userId = (String) req.getAttribute("userId");
+
+        if (userId == null) {
+            log.warn("auth_me_unauthorized");
             throw new InvalidCredentialsException("Unauthorized");
         }
 
@@ -245,46 +233,25 @@ public class AuthController {
                         "id", u.getId().toString(),
                         "username", u.getUsername()
                 )))
-                .orElseGet(() -> {
-                    log.warn("auth_me_user_not_found", kv("userId", userId));
-                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                            .body(Map.of("error", "user not found"));
-                });
-    }
-
-    // =====================================================
-    // CHECK USERNAME AVAILABILITY
-    // =====================================================
-    @GetMapping("/check-username")
-    public ResponseEntity<?> checkUsername(@RequestParam String username) {
-
-        if (username.contains("\u0000")) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Invalid username"));
-        }
-
-        boolean exists = userRepository.findByUsername(username).isPresent();
-
-        log.info("auth_check_username",
-                kv("username", username),
-                kv("available", !exists)
-        );
-
-        return ResponseEntity.ok(Map.of("available", !exists));
+                .orElseGet(() ->
+                        ResponseEntity.status(404).body(Map.of("error", "user not found"))
+                );
     }
 
     // =====================================================
     // LIST ACTIVE SESSIONS
     // =====================================================
     @GetMapping("/sessions")
-    public ResponseEntity<?> listSessions(
-            @RequestHeader("X-User-ID") String userIdHeader
-    ) {
-        UUID userId = UUID.fromString(userIdHeader);
+    public ResponseEntity<?> listSessions(HttpServletRequest req) {
+        String userId = (String) req.getAttribute("userId");
+        if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+
+        UUID uid = UUID.fromString(userId);
 
         var sessions = refreshTokenRepository
-                .findActiveByUserId(userId)
+                .findActiveByUserId(uid)
                 .stream()
-                .sorted((a,b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
                 .map(this::toDTO)
                 .toList();
 
@@ -295,13 +262,11 @@ public class AuthController {
     // REVOKE ALL SESSIONS
     // =====================================================
     @PostMapping("/sessions/revoke-all")
-    public ResponseEntity<?> revokeAllSessions(
-            @RequestHeader("X-User-ID") String userIdHeader
-    ) {
-        UUID userId = UUID.fromString(userIdHeader);
+    public ResponseEntity<?> revokeAll(HttpServletRequest req) {
+        String userId = (String) req.getAttribute("userId");
+        if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
 
-        refreshTokenRepository.revokeAllForUser(userId);
-
+        refreshTokenRepository.revokeAllForUser(UUID.fromString(userId));
         return ResponseEntity.ok(Map.of("status", "ok"));
     }
 
@@ -309,16 +274,19 @@ public class AuthController {
     // REVOKE ONE SESSION
     // =====================================================
     @PostMapping("/sessions/{sessionId}/revoke")
-    public ResponseEntity<?> revokeSession(
-            @RequestHeader("X-User-ID") String userIdHeader,
+    public ResponseEntity<?> revokeOne(
+            HttpServletRequest req,
             @PathVariable UUID sessionId
     ) {
-        UUID userId = UUID.fromString(userIdHeader);
+        String userId = (String) req.getAttribute("userId");
+        if (userId == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+
+        UUID uid = UUID.fromString(userId);
 
         RefreshTokenEntity session = refreshTokenRepository.findById(sessionId)
                 .orElseThrow(() -> new InvalidCredentialsException("Session not found"));
 
-        if (!session.getUserId().equals(userId)) {
+        if (!session.getUserId().equals(uid)) {
             throw new InvalidCredentialsException("Unauthorized session access");
         }
 
@@ -327,14 +295,11 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("status", "revoked"));
     }
 
-
-
     // =====================================================
     // HELPERS
     // =====================================================
     private SessionDTO toDTO(RefreshTokenEntity r) {
-        Instant created =
-                r.getCreatedAt() != null ? r.getCreatedAt() : Instant.now();
+        Instant created = r.getCreatedAt() != null ? r.getCreatedAt() : Instant.now();
 
         return new SessionDTO(
                 r.getId(),
@@ -346,6 +311,4 @@ public class AuthController {
                 r.getExpiresAt()
         );
     }
-
-
 }
