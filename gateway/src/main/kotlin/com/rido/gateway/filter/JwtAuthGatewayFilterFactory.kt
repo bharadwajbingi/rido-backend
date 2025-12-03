@@ -30,34 +30,30 @@ class JwtAuthGatewayFilterFactory(
 
     override fun apply(config: Config?): GatewayFilter {
         return GatewayFilter { exchange, chain ->
+
             val path = exchange.request.path.toString()
             println("JwtAuthFilter: Processing request for path: $path")
 
-            // Public endpoints
-            if (
-                path.startsWith("/auth/login") ||
-                path.startsWith("/auth/register") ||
-                path.startsWith("/auth/refresh") ||
-                path.startsWith("/auth/logout") ||
-                path.startsWith("/auth/.well-known") ||
-                path.startsWith("/auth/keys/jwks.json")
-            ) {
+            // 🔥 Skip ALL /auth/** routes — Auth service validates JWT itself
+            if (path.startsWith("/auth/")) {
+                println("JwtAuthFilter: Skipping all auth routes: $path")
+
                 return@GatewayFilter chain.filter(exchange)
             }
 
             // Extract JWT
             val token = extractToken(exchange.request.headers)
-                ?: return@GatewayFilter unauthorized(exchange).also { println("JwtAuthFilter: Missing token") }
+                ?: return@GatewayFilter unauthorized(exchange)
 
-            // Decode header
-            val header = decodeHeader(token) ?: return@GatewayFilter unauthorized(exchange).also { println("JwtAuthFilter: Failed to decode header") }
+            // Decode JWT header
+            val header = decodeHeader(token)
+                ?: return@GatewayFilter unauthorized(exchange)
 
-            // Validate ALG
-            val alg = header["alg"] as? String ?: return@GatewayFilter unauthorized(exchange).also { println("JwtAuthFilter: Missing ALG") }
-            if (alg != EXPECTED_ALG) return@GatewayFilter unauthorized(exchange).also { println("JwtAuthFilter: Invalid ALG: $alg") }
+            val alg = header["alg"] as? String ?: return@GatewayFilter unauthorized(exchange)
+            if (alg != EXPECTED_ALG) return@GatewayFilter unauthorized(exchange)
 
-            val kid = header["kid"] as? String ?: return@GatewayFilter unauthorized(exchange).also { println("JwtAuthFilter: Missing KID") }
-            val publicKey = keyResolver.resolve(kid) ?: return@GatewayFilter unauthorized(exchange).also { println("JwtAuthFilter: Key not found for kid: $kid") }
+            val kid = header["kid"] as? String ?: return@GatewayFilter unauthorized(exchange)
+            val publicKey = keyResolver.resolve(kid) ?: return@GatewayFilter unauthorized(exchange)
 
             // Parse JWT
             val claims = try {
@@ -67,26 +63,21 @@ class JwtAuthGatewayFilterFactory(
                     .parseClaimsJws(token)
                     .body
             } catch (e: Exception) {
-                println("JwtAuthFilter: Token parsing failed: ${e.message}")
                 return@GatewayFilter unauthorized(exchange)
             }
 
-            // Validate ISS / AUD
-            if (claims.issuer != EXPECTED_ISS) return@GatewayFilter unauthorized(exchange).also { println("JwtAuthFilter: Invalid ISS: ${claims.issuer}") }
-            val audience = claims.audience
-            if (audience == null || !audience.contains(EXPECTED_AUD)) {
-                return@GatewayFilter unauthorized(exchange).also { println("JwtAuthFilter: Invalid AUD: $audience") }
+            // Validate ISS & AUD
+            if (claims.issuer != EXPECTED_ISS) return@GatewayFilter unauthorized(exchange)
+            if (claims.audience == null || !claims.audience.contains(EXPECTED_AUD)) {
+                return@GatewayFilter unauthorized(exchange)
             }
 
-            val jti = claims.id ?: return@GatewayFilter unauthorized(exchange).also { println("JwtAuthFilter: Missing JTI") }
-            val userId = claims.subject ?: return@GatewayFilter unauthorized(exchange).also { println("JwtAuthFilter: Missing SUB") }
+            val jti = claims.id ?: return@GatewayFilter unauthorized(exchange)
+            val userId = claims.subject ?: return@GatewayFilter unauthorized(exchange)
 
             redis.hasKey("auth:jti:blacklist:$jti")
                 .flatMap { isBlacklisted ->
-                    if (isBlacklisted) {
-                        println("JwtAuthFilter: Token is blacklisted")
-                        return@flatMap unauthorized(exchange)
-                    }
+                    if (isBlacklisted) return@flatMap unauthorized(exchange)
 
                     val rolesList = (claims["roles"] as? List<*>)?.map { it.toString() } ?: emptyList()
                     val authorities = rolesList.map { SimpleGrantedAuthority("ROLE_$it") }
@@ -94,24 +85,26 @@ class JwtAuthGatewayFilterFactory(
                     val auth = UsernamePasswordAuthenticationToken(userId, null, authorities)
                     val securityContext = SecurityContextImpl(auth)
 
-                    // Inject headers
-                    // Inject headers
-                    val request = exchange.request.mutate()
+                    // Inject headers for downstream services (NOT auth)
+                    val mutatedRequest = exchange.request.mutate()
                         .header("X-User-ID", userId)
-                        .header("X-User-Roles", rolesList.joinToString(","))
+                        .header("X-User-Role", rolesList.joinToString(","))
                         .build()
 
-                    val newExchange = exchange.mutate().request(request).build()
-                    println("JwtAuthFilter: Injecting headers. userId=$userId, roles=$rolesList")
+                    val newEx = exchange.mutate().request(mutatedRequest).build()
 
-                    return@flatMap chain.filter(newExchange)
-                        .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(securityContext)))
+                    chain.filter(newEx)
+                        .contextWrite(
+                            ReactiveSecurityContextHolder.withSecurityContext(
+                                Mono.just(securityContext)
+                            )
+                        )
                 }
         }
     }
 
     // -----------------------------
-    // ✅ These methods MUST be OUTSIDE apply()
+    // Helpers (MUST be outside apply())
     // -----------------------------
 
     private fun extractToken(headers: HttpHeaders): String? {

@@ -6,6 +6,7 @@ spring:
     redis:
       host: redis
       port: 6379
+
   main:
     allow-bean-definition-overriding: true
 
@@ -15,40 +16,32 @@ spring:
         locator:
           enabled: false
 
-      # No default filters - apply per route for better control
-      
       routes:
-        # Authenticated /auth endpoints (must come BEFORE public catch-all)
+
+        # Authenticated /auth endpoints
         - id: auth-me
           uri: https://auth:8080
           predicates:
             - Path=/auth/me
           filters:
             - JwtAuth
-            
+
         - id: auth-sessions
           uri: https://auth:8080
           predicates:
             - Path=/auth/sessions,/auth/sessions/**
           filters:
             - JwtAuth
-        
-        # Public /auth endpoints (catch-all for remaining /auth/**)
+
+        # Public /auth endpoints
         - id: auth-public
           uri: https://auth:8080
           predicates:
             - Path=/auth/**
           filters:
             - RemoveRequestHeader=Cookie
-            # No JwtAuth - public endpoints (register, login, etc.)
 
-        # Internal Admin Ops (Protected by X-SYSTEM-KEY in Auth Service)
-        - id: internal-admin
-          uri: https://auth:8080
-          predicates:
-            - Path=/internal/**
-          filters:
-            - RemoveRequestHeader=Cookie
+
 
         - id: secure-info
           uri: https://auth:8080
@@ -57,19 +50,22 @@ spring:
           filters:
             - JwtAuth
 
-        # Profile Service Routes
+        # Profile service
         - id: profile-service
-          uri: http://profile:8082
+          uri: http://profile:8080
           predicates:
             - Path=/profile/**
           filters:
             - JwtAuth
+            - PreserveHostHeader
+            # - SetRequestHeader=X-Forwarded-Proto, http
 
 management:
   endpoints:
     web:
       exposure:
         include: "*"
+
   endpoint:
     gateway:
       enabled: true
