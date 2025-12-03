@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import reactor.core.publisher.Mono
+import java.util.UUID
 
 @RestController
 @RequestMapping("/profile")
@@ -19,13 +20,13 @@ class ProfileController(
 ) {
 
     @GetMapping("/me")
-    fun getMyProfile(@RequestHeader("X-User-ID") userId: Long): Mono<UserProfileResponse> {
+    fun getMyProfile(@RequestHeader("X-User-ID") userId: UUID): Mono<UserProfileResponse> {
         return profileService.getProfile(userId)
     }
 
     @PutMapping("/me")
     fun updateMyProfile(
-        @RequestHeader("X-User-ID") userId: Long,
+        @RequestHeader("X-User-ID") userId: UUID,
         @RequestBody request: UpdateProfileRequest
     ): Mono<UserProfileResponse> {
         return profileService.updateProfile(userId, request)
@@ -33,7 +34,7 @@ class ProfileController(
 
     @PostMapping("/me/photo")
     fun uploadPhoto(
-        @RequestHeader("X-User-ID") userId: Long
+        @RequestHeader("X-User-ID") userId: UUID
     ): Mono<Map<String, String>> {
         return profileService.generatePhotoUploadUrl(userId)
             .map { url -> mapOf("uploadUrl" to url) }

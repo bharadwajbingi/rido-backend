@@ -18,12 +18,12 @@ class DriverDocumentService(
     private val eventProducer: ProfileEventProducer
 ) {
 
-    fun getDocuments(driverId: Long): Flux<DriverDocumentResponse> {
+    fun getDocuments(driverId: UUID): Flux<DriverDocumentResponse> {
         return documentRepository.findAllByDriverId(driverId)
             .map { it.toResponse() }
     }
 
-    fun uploadDocument(driverId: Long, request: UploadDriverDocumentRequest): Mono<DriverDocumentResponse> {
+    fun uploadDocument(driverId: UUID, request: UploadDriverDocumentRequest): Mono<DriverDocumentResponse> {
         val document = DriverDocument(
             driverId = driverId,
             type = request.type,

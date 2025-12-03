@@ -13,23 +13,23 @@ import java.util.UUID
 
 @Repository
 interface UserProfileRepository : R2dbcRepository<UserProfile, UUID> {
-    fun findByUserId(userId: Long): Mono<UserProfile>
+    fun findByUserId(userId: UUID): Mono<UserProfile>
     fun findByPhone(phone: String): Mono<UserProfile>
     fun findByEmail(email: String): Mono<UserProfile>
 }
 
 @Repository
 interface RiderAddressRepository : R2dbcRepository<RiderAddress, UUID> {
-    fun findAllByRiderId(riderId: Long): Flux<RiderAddress>
+    fun findAllByRiderId(riderId: UUID): Flux<RiderAddress>
 }
 
 @Repository
 interface DriverDocumentRepository : R2dbcRepository<DriverDocument, UUID> {
-    fun findAllByDriverId(driverId: Long): Flux<DriverDocument>
+    fun findAllByDriverId(driverId: UUID): Flux<DriverDocument>
 }
 
 @Repository
-interface DriverStatsRepository : R2dbcRepository<DriverStats, Long> {
+interface DriverStatsRepository : R2dbcRepository<DriverStats, UUID> {
     // PK is driver_id (Long), so standard methods work
 }
 

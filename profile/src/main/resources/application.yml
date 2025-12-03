@@ -1,30 +1,33 @@
 server:
-  port: 8082
+  port: 8080
 
 spring:
   application:
     name: profile-service
+
   r2dbc:
-    url: r2dbc:postgresql://localhost:5432/ride_hailing
+    url: r2dbc:postgresql://postgres:5432/ride_hailing
     username: rh_user
-    password: rh_password
+    password: rh_pass
     pool:
       initial-size: 5
       max-size: 20
+
   flyway:
-    url: jdbc:postgresql://localhost:5432/ride_hailing
+    url: jdbc:postgresql://postgres:5432/ride_hailing
     user: rh_user
-    password: rh_password
+    password: rh_pass
     locations: classpath:db/migration
     enabled: true
+    baseline-on-migrate: true   # ✅ REQUIRED FIX
 
   data:
     redis:
-      host: localhost
+      host: redis
       port: 6379
 
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: kafka:9092
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer

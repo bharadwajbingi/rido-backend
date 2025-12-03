@@ -9,7 +9,7 @@ import java.util.UUID
 
 data class UserProfileResponse(
     val id: UUID,
-    val userId: Long,
+    val userId: UUID,
     val name: String,
     val phone: String,
     val email: String,
@@ -56,7 +56,7 @@ data class UploadDriverDocumentRequest(
 )
 
 data class DriverStatsResponse(
-    val driverId: Long,
+    val driverId: UUID,
     val totalTrips: Int,
     val rating: Double,
     val earnings: Double

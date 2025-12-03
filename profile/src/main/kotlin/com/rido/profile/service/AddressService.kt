@@ -14,12 +14,12 @@ class AddressService(
     private val addressRepository: RiderAddressRepository
 ) {
 
-    fun getAddresses(riderId: Long): Flux<RiderAddressResponse> {
+    fun getAddresses(riderId: UUID): Flux<RiderAddressResponse> {
         return addressRepository.findAllByRiderId(riderId)
             .map { it.toResponse() }
     }
 
-    fun addAddress(riderId: Long, request: AddAddressRequest): Mono<RiderAddressResponse> {
+    fun addAddress(riderId: UUID, request: AddAddressRequest): Mono<RiderAddressResponse> {
         val address = RiderAddress(
             riderId = riderId,
             label = request.label,
@@ -30,7 +30,7 @@ class AddressService(
             .map { it.toResponse() }
     }
 
-    fun deleteAddress(riderId: Long, addressId: UUID): Mono<Void> {
+    fun deleteAddress(riderId: UUID, addressId: UUID): Mono<Void> {
         return addressRepository.findById(addressId)
             .filter { it.riderId == riderId }
             .flatMap { addressRepository.delete(it) }

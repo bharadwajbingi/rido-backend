@@ -22,7 +22,7 @@ class AdminProfileService(
 ) {
 
     @Transactional
-    fun approveDocument(adminId: Long, documentId: UUID): Mono<DriverDocumentResponse> {
+    fun approveDocument(adminId: UUID, documentId: UUID): Mono<DriverDocumentResponse> {
         return documentRepository.findById(documentId)
             .switchIfEmpty(Mono.error(RuntimeException("Document not found")))
             .flatMap { doc ->
@@ -32,7 +32,7 @@ class AdminProfileService(
                 )
                 documentRepository.save(updatedDoc)
                     .flatMap { saved ->
-                        logAudit(adminId, "APPROVE", "DriverDocument", saved.id.toString(), "Approved document")
+                        logAudit(adminId, "APPROVE", "DriverDocument", saved.id.toString(), "Approved document", "DOCUMENT_APPROVED", "Admin")
                             .doOnSuccess {
                                 eventProducer.publishDriverApproved(
                                     DriverApprovedEvent(driverId = saved.driverId)
@@ -44,7 +44,7 @@ class AdminProfileService(
     }
 
     @Transactional
-    fun rejectDocument(adminId: Long, documentId: UUID, reason: String): Mono<DriverDocumentResponse> {
+    fun rejectDocument(adminId: UUID, documentId: UUID, reason: String): Mono<DriverDocumentResponse> {
         return documentRepository.findById(documentId)
             .switchIfEmpty(Mono.error(RuntimeException("Document not found")))
             .flatMap { doc ->
@@ -55,7 +55,7 @@ class AdminProfileService(
                 )
                 documentRepository.save(updatedDoc)
                     .flatMap { saved ->
-                        logAudit(adminId, "REJECT", "DriverDocument", saved.id.toString(), "Rejected document: $reason")
+                        logAudit(adminId, "REJECT", "DriverDocument", saved.id.toString(), "Rejected document: $reason", "DOCUMENT_REJECTED", "Admin")
                             .doOnSuccess {
                                 eventProducer.publishDriverRejected(
                                     DriverRejectedEvent(driverId = saved.driverId, reason = reason)
@@ -66,14 +66,16 @@ class AdminProfileService(
             }
     }
 
-    private fun logAudit(actorId: Long, action: String, entity: String, entityId: String, metadata: String): Mono<AuditLog> {
+    private fun logAudit(actorId: UUID, action: String, entity: String, entityId: String, metadata: String, eventType: String = "UNKNOWN", username: String = "Unknown"): Mono<AuditLog> {
         return auditLogRepository.save(
             AuditLog(
                 entity = entity,
                 entityId = entityId,
                 action = action,
                 actor = actorId,
-                metadata = metadata
+                metadata = metadata,
+                eventType = eventType,
+                username = username
             )
         )
     }

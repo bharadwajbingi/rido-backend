@@ -31,7 +31,7 @@ class SecurityConfig {
                     .pathMatchers("/actuator/**").permitAll() // Health checks
                     .pathMatchers("/profile/admin/**").hasRole("ADMIN")
                     .pathMatchers("/profile/driver/**").hasAnyRole("DRIVER", "ADMIN")
-                    .pathMatchers("/profile/rider/**").hasAnyRole("RIDER", "ADMIN")
+                    .pathMatchers("/profile/rider/**").hasAnyRole("RIDER", "ADMIN", "USER")
                     .anyExchange().authenticated()
             }
             .addFilterAt(authenticationWebFilter(), SecurityWebFiltersOrder.AUTHENTICATION)
@@ -50,15 +50,19 @@ class SecurityConfig {
 class GatewayAuthenticationConverter : ServerAuthenticationConverter {
     override fun convert(exchange: ServerWebExchange): Mono<org.springframework.security.core.Authentication> {
         val userId = exchange.request.headers.getFirst("X-User-ID")
-        val roles = exchange.request.headers.getFirst("X-Roles")
+        val role = exchange.request.headers.getFirst("X-User-Role")
 
-        if (userId != null && roles != null) {
-            val authorities = roles.split(",")
+        println("ProfileAuth: userId=$userId, role=$role")
+
+        if (userId != null && role != null) {
+            val authorities = role.split(",")
                 .map { SimpleGrantedAuthority("ROLE_$it") }
             
+            println("ProfileAuth: ✅ Authenticated userId=$userId with authorities=$authorities")
             val auth = UsernamePasswordAuthenticationToken(userId, null, authorities)
             return Mono.just(auth)
         }
+        println("ProfileAuth: ❌ Missing headers - userId=$userId, role=$role")
         return Mono.empty()
     }
 }

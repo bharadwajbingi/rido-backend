@@ -12,9 +12,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import reactor.core.publisher.Mono
 import java.time.Instant
-
-import org.springframework.cache.annotation.CacheEvict
-import org.springframework.cache.annotation.Cacheable
+import java.util.UUID
 
 @Service
 class ProfileService(
@@ -24,16 +22,32 @@ class ProfileService(
     private val eventProducer: ProfileEventProducer
 ) {
 
-    @Cacheable(value = ["user_profiles"], key = "#userId")
-    fun getProfile(userId: Long): Mono<UserProfileResponse> {
+    fun getProfile(userId: UUID): Mono<UserProfileResponse> {
         return userProfileRepository.findByUserId(userId)
             .map { it.toResponse() }
-            .switchIfEmpty(Mono.error(RuntimeException("User not found")))
+            .switchIfEmpty(
+                // Auto-create profile on first access
+                createDefaultProfile(userId)
+                    .flatMap { userProfileRepository.save(it) }
+                    .map { it.toResponse() }
+            )
+    }
+
+    private fun createDefaultProfile(userId: UUID): Mono<UserProfile> {
+        return Mono.just(
+            UserProfile(
+                userId = userId,
+                name = "User",  // Default name
+                phone = "",      // Will be updated later
+                email = "",      // Will be updated later
+                role = com.rido.profile.model.UserRole.RIDER,  // Default role
+                status = com.rido.profile.model.UserStatus.ACTIVE
+            )
+        )
     }
 
     @Transactional
-    @CacheEvict(value = ["user_profiles"], key = "#userId")
-    fun updateProfile(userId: Long, request: UpdateProfileRequest): Mono<UserProfileResponse> {
+    fun updateProfile(userId: UUID, request: UpdateProfileRequest): Mono<UserProfileResponse> {
         return userProfileRepository.findByUserId(userId)
             .switchIfEmpty(Mono.error(RuntimeException("User not found")))
             .flatMap { profile ->
@@ -44,7 +58,7 @@ class ProfileService(
                 )
                 userProfileRepository.save(updatedProfile)
                     .flatMap { saved ->
-                        logAudit(userId, "UPDATE", "UserProfile", saved.id.toString(), "Updated profile details")
+                        logAudit(userId, "UPDATE", "UserProfile", saved.id.toString(), "Updated profile details", "PROFILE_UPDATED", saved.name)
                             .doOnSuccess {
                                 eventProducer.publishProfileUpdated(
                                     ProfileUpdatedEvent(
@@ -61,21 +75,23 @@ class ProfileService(
             }
     }
 
-    fun generatePhotoUploadUrl(userId: Long): Mono<String> {
+    fun generatePhotoUploadUrl(userId: UUID): Mono<String> {
         // In a real app, we'd check if the user exists first.
         // We'll generate a path like: users/{userId}/profile-photo.jpg
         val fileName = "users/$userId/profile-photo.jpg"
         return storageService.generateSignedUrl(fileName, "image/jpeg")
     }
 
-    private fun logAudit(actorId: Long, action: String, entity: String, entityId: String, metadata: String): Mono<AuditLog> {
+    private fun logAudit(actorId: UUID, action: String, entity: String, entityId: String, metadata: String, eventType: String = "UNKNOWN", username: String = "Unknown"): Mono<AuditLog> {
         return auditLogRepository.save(
             AuditLog(
                 entity = entity,
                 entityId = entityId,
                 action = action,
                 actor = actorId,
-                metadata = metadata
+                metadata = metadata,
+                eventType = eventType,
+                username = username
             )
         )
     }

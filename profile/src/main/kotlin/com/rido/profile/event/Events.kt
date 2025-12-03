@@ -1,27 +1,29 @@
 package com.rido.profile.event
 
+import java.util.UUID
+
 import java.time.Instant
 
 data class ProfileUpdatedEvent(
-    val userId: Long,
+    val userId: UUID,
     val fieldsChanged: List<String>,
     val timestamp: Instant = Instant.now()
 )
 
 data class DriverDocumentUploadedEvent(
-    val driverId: Long,
+    val driverId: UUID,
     val documentId: String,
     val type: String,
     val timestamp: Instant = Instant.now()
 )
 
 data class DriverApprovedEvent(
-    val driverId: Long,
+    val driverId: UUID,
     val timestamp: Instant = Instant.now()
 )
 
 data class DriverRejectedEvent(
-    val driverId: Long,
+    val driverId: UUID,
     val reason: String,
     val timestamp: Instant = Instant.now()
 )
