@@ -19,7 +19,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/keys/jwks.json"
+            "url": "{{auth_url}}/auth/keys/jwks.json"
           },
           "event": [
             {
@@ -49,7 +49,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"{{test_user}}\",\n    \"password\": \"{{test_password}}\"\n}"
@@ -86,7 +86,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"{{test_user}}\",\n    \"password\": \"{{test_password}}\"\n}"
@@ -114,7 +114,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"ab\",\n    \"password\": \"ValidPass123\"\n}"
@@ -142,7 +142,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n    \"password\": \"ValidPass123\"\n}"
@@ -170,7 +170,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"valid_user_123\",\n    \"password\": \"ValidPass123\"\n}"
@@ -203,7 +203,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/login",
+            "url": "{{auth_url}}/auth/login",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"{{test_user}}\",\n    \"password\": \"{{test_password}}\"\n}"
@@ -261,7 +261,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/me",
+            "url": "{{auth_url}}/auth/me",
             "description": "Missing token"
           },
           "event": [
@@ -286,7 +286,7 @@
                 "value": ""
               }
             ],
-            "url": "{{base_url}}/auth/me",
+            "url": "{{auth_url}}/auth/me",
             "description": "Empty token"
           },
           "event": [
@@ -311,7 +311,7 @@
                 "value": "malformed"
               }
             ],
-            "url": "{{base_url}}/auth/me",
+            "url": "{{auth_url}}/auth/me",
             "description": "Invalid format"
           },
           "event": [
@@ -336,7 +336,7 @@
                 "value": "Bearer "
               }
             ],
-            "url": "{{base_url}}/auth/me",
+            "url": "{{auth_url}}/auth/me",
             "description": "Empty bearer"
           },
           "event": [
@@ -361,7 +361,7 @@
                 "value": "Bearer invalid.jwt.here"
               }
             ],
-            "url": "{{base_url}}/auth/me",
+            "url": "{{auth_url}}/auth/me",
             "description": "Bad JWT"
           },
           "event": [
@@ -386,7 +386,7 @@
                 "value": "Bearer eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.fake"
               }
             ],
-            "url": "{{base_url}}/auth/me",
+            "url": "{{auth_url}}/auth/me",
             "description": "Tampered"
           },
           "event": [
@@ -411,7 +411,7 @@
                 "value": "Bearer {{access_token}}"
               }
             ],
-            "url": "{{base_url}}/auth/me"
+            "url": "{{auth_url}}/auth/me"
           },
           "event": [
             {
@@ -438,7 +438,7 @@
                 "value": "Bearer {{access_token}}"
               }
             ],
-            "url": "{{base_url}}/secure/info",
+            "url": "{{gateway_url}}/secure/info",
             "description": "Validates SecurityContext propagation"
           },
           "event": [
@@ -466,7 +466,7 @@
                 "value": "Bearer {{access_token}}"
               }
             ],
-            "url": "{{base_url}}/auth/sessions"
+            "url": "{{auth_url}}/auth/sessions"
           },
           "event": [
             {
@@ -498,7 +498,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/refresh",
+            "url": "{{auth_url}}/auth/refresh",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"refreshToken\": \"{{refresh_token}}\"\n}"
@@ -553,7 +553,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/refresh",
+            "url": "{{auth_url}}/auth/refresh",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"refreshToken\": \"{{old_refresh_token}}\"\n}"
@@ -582,7 +582,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/refresh",
+            "url": "{{auth_url}}/auth/refresh",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"refreshToken\": \"{{refresh_token}}\"\n}"
@@ -622,7 +622,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/refresh",
+            "url": "{{auth_url}}/auth/refresh",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"refreshToken\": \"\"\n}"
@@ -650,7 +650,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/refresh",
+            "url": "{{auth_url}}/auth/refresh",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"refreshToken\": \"not-a-uuid\"\n}"
@@ -678,7 +678,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/refresh",
+            "url": "{{auth_url}}/auth/refresh",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"refreshToken\": \"1456120b-6d8c-405f-935c-142d731764ef\"\n}"
@@ -706,7 +706,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/refresh",
+            "url": "{{auth_url}}/auth/refresh",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"refreshToken\": \"'; DROP TABLE tokens; --\"\n}"
@@ -734,7 +734,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/refresh",
+            "url": "{{auth_url}}/auth/refresh",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"refreshToken\": \"<script>alert(1)</script>\"\n}"
@@ -771,7 +771,7 @@
                 "value": "Bearer {{access_token}}"
               }
             ],
-            "url": "{{base_url}}/auth/logout",
+            "url": "{{auth_url}}/auth/logout",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"refreshToken\": \"{{refresh_token}}\"\n}"
@@ -801,7 +801,7 @@
                 "value": "Bearer {{blacklisted_token}}"
               }
             ],
-            "url": "{{base_url}}/auth/me",
+            "url": "{{auth_url}}/auth/me",
             "description": "JTI blacklist check via Redis"
           },
           "event": [
@@ -826,7 +826,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/refresh",
+            "url": "{{auth_url}}/auth/refresh",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"refreshToken\": \"{{refresh_token}}\"\n}"
@@ -855,7 +855,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/login",
+            "url": "{{auth_url}}/auth/login",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"{{test_user}}\",\n    \"password\": \"{{test_password}}\"\n}"
@@ -900,7 +900,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/login",
+            "url": "{{auth_url}}/auth/login",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"{{admin_user}}\",\n    \"password\": \"{{admin_password}}\"\n}"
@@ -944,7 +944,7 @@
                 "value": "Bearer {{access_token}}"
               }
             ],
-            "url": "{{base_url}}/auth/keys/rotate",
+            "url": "{{auth_url}}/auth/keys/rotate",
             "description": "Only ADMIN role can rotate keys"
           },
           "event": [
@@ -969,7 +969,7 @@
                 "value": "Bearer {{admin_token}}"
               }
             ],
-            "url": "{{base_url}}/auth/keys/rotate",
+            "url": "{{auth_url}}/auth/keys/rotate",
             "description": "ADMIN can rotate signing keys"
           },
           "event": [
@@ -1003,7 +1003,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/keys/jwks.json"
+            "url": "{{auth_url}}/auth/keys/jwks.json"
           },
           "event": [
             {
@@ -1034,7 +1034,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/login",
+            "url": "{{auth_url}}/auth/login",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"admin' OR '1'='1\",\n    \"password\": \"anything\"\n}"
@@ -1071,7 +1071,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/login",
+            "url": "{{auth_url}}/auth/login",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"'; DROP TABLE users; --\",\n    \"password\": \"anything\"\n}"
@@ -1108,7 +1108,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/login",
+            "url": "{{auth_url}}/auth/login",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"admin'--\",\n    \"password\": \"anything\"\n}"
@@ -1145,7 +1145,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/login",
+            "url": "{{auth_url}}/auth/login",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"1' UNION SELECT NULL--\",\n    \"password\": \"anything\"\n}"
@@ -1182,7 +1182,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"<script>alert('xss')</script>\",\n    \"password\": \"ValidPass123\"\n}"
@@ -1219,7 +1219,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"<img src=x onerror=alert(1)>\",\n    \"password\": \"ValidPass123\"\n}"
@@ -1256,7 +1256,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"javascript:alert(1)\",\n    \"password\": \"ValidPass123\"\n}"
@@ -1293,7 +1293,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/check-username?username=../../../etc/passwd"
+            "url": "{{auth_url}}/auth/check-username?username=../../../etc/passwd"
           },
           "event": [
             {
@@ -1317,7 +1317,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/check-username?username=admin\u0000"
+            "url": "{{auth_url}}/auth/check-username?username=admin\u0000"
           },
           "event": [
             {
@@ -1346,7 +1346,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"\",\n    \"password\": \"ValidPass123\"\n}"
@@ -1374,7 +1374,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"validuser\",\n    \"password\": \"\"\n}"
@@ -1402,7 +1402,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": null,\n    \"password\": \"ValidPass123\"\n}"
@@ -1430,7 +1430,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"validuser\",\n    \"password\": null\n}"
@@ -1458,7 +1458,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"password\": \"ValidPass123\"\n}"
@@ -1486,7 +1486,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"validuser\"\n}"
@@ -1514,7 +1514,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{}"
@@ -1542,7 +1542,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"   \",\n    \"password\": \"ValidPass123\"\n}"
@@ -1570,7 +1570,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"validuser\",\n    \"password\": \"123\"\n}"
@@ -1598,7 +1598,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/register",
+            "url": "{{auth_url}}/auth/register",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n    \"password\": \"ValidPass123\"\n}"
@@ -1726,7 +1726,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/auth/login",
+            "url": "{{auth_url}}/auth/login",
             "body": {
               "mode": "raw",
               "raw": "{\n    \"username\": \"{{new_admin_user}}\",\n    \"password\": \"SecurePass123!\"\n}"
@@ -1764,8 +1764,12 @@
   ],
   "variable": [
     {
-      "key": "base_url",
+      "key": "gateway_url",
       "value": "http://localhost:8080"
+    },
+    {
+      "key": "auth_url",
+      "value": "https://localhost:8081"
     },
     {
       "key": "test_user",
