@@ -235,4 +235,34 @@ public class AuditLogService {
             log.error("Failed to save audit log for device mismatch", e);
         }
     }
+
+    /**
+     * Log automatic session revocation due to session limit exceeded
+     */
+    public void logSessionRevoked(UUID userId, String username, UUID sessionId, String reason, String newDeviceId, String ip) {
+        try {
+            AuditLog auditLog = new AuditLog();
+            auditLog.setEventType(AuditEvent.SESSION_REVOKED);
+            auditLog.setUserId(userId);
+            auditLog.setUsername(username != null ? username : "unknown");
+            auditLog.setIpAddress(ip);
+            auditLog.setDeviceId(newDeviceId);
+            auditLog.setSuccess(true);
+            auditLog.setMetadata("revoked_session_id=" + sessionId + ", reason=" + reason);
+
+            auditLogRepository.save(auditLog);
+
+            log.warn("audit_session_revoked",
+                    kv("userId", userId),
+                    kv("username", username),
+                    kv("sessionId", sessionId),
+                    kv("reason", reason),
+                    kv("newDeviceId", newDeviceId),
+                    kv("ip", ip)
+            );
+        } catch (Exception e) {
+            log.error("Failed to save audit log for session revocation", e);
+        }
+    }
 }
+

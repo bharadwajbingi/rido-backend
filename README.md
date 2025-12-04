@@ -531,9 +531,6 @@ curl -X GET http://localhost:8080/profile/me \
 ### Architecture Decision Records (ADRs)
 
 - **[ADR-001](docs/adr/001-monorepo-structure.md)** - Monorepo structure decision
-
-### API Specifications
-
 - **[openapi/auth-api.yaml](openapi/auth-api.yaml)** - Auth service API
 - **[openapi/gateway-api.yaml](openapi/gateway-api.yaml)** - Gateway routes
 - **[openapi/profile-api.yaml](openapi/profile-api.yaml)** - Profile service API

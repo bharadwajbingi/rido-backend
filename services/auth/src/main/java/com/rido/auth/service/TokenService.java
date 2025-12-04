@@ -8,8 +8,11 @@ import com.rido.auth.repo.RefreshTokenRepository;
 import com.rido.auth.util.HashUtils;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.security.PrivateKey;
 import java.time.Instant;
@@ -20,8 +23,11 @@ import java.util.UUID;
 @Service
 public class TokenService {
 
+    private static final Logger log = LoggerFactory.getLogger(TokenService.class);
+
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtKeyStore keyStore;
+    private final AuditLogService auditLogService;
     private final long accessTtlSeconds;
     private final long refreshTtlSeconds;
     private final int maxActiveSessions;
@@ -30,25 +36,45 @@ public class TokenService {
             RefreshTokenRepository refreshTokenRepository,
             JwtKeyStore keyStore,
             JwtConfig jwtConfig,
+            AuditLogService auditLogService,
             @Value("${auth.login.max-active-sessions:5}") int maxActiveSessions
     ) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.keyStore = keyStore;
+        this.auditLogService = auditLogService;
         this.accessTtlSeconds = jwtConfig.accessTokenTtlSeconds();
         this.refreshTtlSeconds = jwtConfig.refreshTokenTtlSeconds();
         this.maxActiveSessions = maxActiveSessions;
     }
 
+    @Transactional
     public TokenResponse createTokens(UUID userId, String role, String deviceId, String ip, String userAgent) {
 
         // Enforce max active sessions limit
         List<RefreshTokenEntity> activeSessions = refreshTokenRepository.findActiveByUserIdOrderByCreatedAtAsc(userId);
+        
         if (activeSessions.size() >= maxActiveSessions) {
             int tokensToRemove = activeSessions.size() - maxActiveSessions + 1;
+            
+            log.warn("User {} exceeded session limit ({}/{}). Revoking {} oldest session(s).",
+                    userId, activeSessions.size(), maxActiveSessions, tokensToRemove);
+            
             for (int i = 0; i < tokensToRemove; i++) {
                 RefreshTokenEntity toRevoke = activeSessions.get(i);
                 toRevoke.setRevoked(true);
                 refreshTokenRepository.save(toRevoke);
+                
+                log.info("Auto-revoked session {} for user {} (deviceId: {}, created: {})",
+                        toRevoke.getId(), userId, toRevoke.getDeviceId(), toRevoke.getCreatedAt());
+                
+                auditLogService.logSessionRevoked(
+                        userId,
+                        userId.toString(),  // Use userId as username (username not available here)
+                        toRevoke.getId(),
+                        "SESSION_LIMIT_EXCEEDED",
+                        deviceId,
+                        ip
+                );
             }
         }
 

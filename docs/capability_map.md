@@ -437,7 +437,7 @@ REGISTRATION, TOKEN_REFRESH, SESSION_REVOKED
 7. **Role-Based Access Control** - Roles extracted but no fine-grained permissions
 8. **Token Revocation List** - Only JTI blacklisting, no full token revocation list
 9. **Geo-blocking** - No IP-based geo-restrictions
-10. **Session Limits** - Config has `max-active-sessions: 5` but enforcement NOT implemented
+10. **Session Limits** - ✅ Config has `max-active-sessions: 5` and enforcement IMPLEMENTED (2025-12-04)
 
 ### 12. All TODOs, FIXMEs, Unused Classes, Dead Code
 
@@ -481,7 +481,7 @@ admin.server.port: 9091  # Admin API port
 auth.login:
   max-failed-attempts: 5
   lockout-duration-seconds: 300  # 5 minutes
-  max-active-sessions: 5  # NOT ENFORCED
+  max-active-sessions: 5  # ✅ ENFORCED (2025-12-04)
 
 jwt:
   accessTokenTtlSeconds: ${JWT_ACCESS_TTL:300}
@@ -1245,10 +1245,10 @@ logging.level:
 
 ### Missing Features
 
-8. **Session Limit Enforcement** ⚠️ **MEDIUM**
-   - `max-active-sessions: 5` configured but NOT enforced
-   - Users can create unlimited sessions
-   - **Mitigation:** Implement session count check in `LoginService`
+8. **Session Limit Enforcement** ✅ **IMPLEMENTED (2025-12-04)**
+   - `max-active-sessions: 5` configured and ENFORCED in `TokenService.java`
+   - Users can now only have maximum configured sessions
+   - **Status:** Fixed with audit logging and transaction safety
 
 9. **Replay Protection** ⚠️ **LOW**
    - Device ID validation exists but no nonce-based replay detection
