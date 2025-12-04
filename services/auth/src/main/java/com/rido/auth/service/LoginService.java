@@ -17,6 +17,13 @@ import java.util.Optional;
 @Service
 public class LoginService {
 
+    /**
+     * Dummy password hash for timing attack mitigation.
+     * Used to perform fake password verification when user doesn't exist.
+     * This ensures constant-time response regardless of whether the user exists.
+     */
+    private static final String DUMMY_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$dHlwZXNpeC5jb20tc2VjdXJl$qwerty123456789012345678901234567890123456789012";
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final LoginAttemptService loginAttemptService;
@@ -67,15 +74,26 @@ public class LoginService {
             loginAttemptService.ensureNotLocked(username);
         }
 
-        // 2. User Not Found
+        // 2. TIMING ATTACK MITIGATION: Always perform password verification
+        // This ensures constant-time response whether user exists or not
+        boolean passwordMatches;
+        UserEntity user;
+        
         if (userOpt.isEmpty()) {
+            // Fake user flow: verify against dummy hash to match timing
+            // This prevents username enumeration via timing attacks
+            passwordEncoder.matches(password, DUMMY_PASSWORD_HASH);
+            passwordMatches = false;
+            user = null;
+            
+            // Log failure with uniform error message
             loginFailureCounter.increment();
             loginAttemptService.onFailure(username, ip, null);
             auditLogService.logLoginFailed(username, ip, deviceId, userAgent, "Invalid credentials");
-            throw new InvalidCredentialsException("Invalid credentials");
+            throw new InvalidCredentialsException("Invalid username or password");
         }
-
-        UserEntity user = userOpt.get();
+        
+        user = userOpt.get();
 
         // 3. Check DB Lock (SKIP FOR ADMINS)
         if (!"ADMIN".equals(user.getRole()) && user.getLockedUntil() != null && user.getLockedUntil().isAfter(Instant.now())) {
@@ -85,13 +103,18 @@ public class LoginService {
             throw new AccountLockedException("Account locked");
         }
 
-        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+        // 4. Verify password (actual user)
+        passwordMatches = passwordEncoder.matches(password, user.getPasswordHash());
+        
+        if (!passwordMatches) {
             loginFailureCounter.increment();
             loginAttemptService.onFailure(username, ip, user);
-            auditLogService.logLoginFailed(username, ip, deviceId, userAgent, "Invalid password");
-            throw new InvalidCredentialsException("Invalid credentials");
+            auditLogService.logLoginFailed(username, ip, deviceId, userAgent, "Invalid credentials");
+            // Uniform error message - no indication of whether user exists
+            throw new InvalidCredentialsException("Invalid username or password");
         }
 
+        // 5. Login successful
         loginAttemptService.onSuccess(username, ip, user);
         loginSuccessCounter.increment();
 
