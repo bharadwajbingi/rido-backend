@@ -43,6 +43,7 @@ run_test() {
 run_test "$SCRIPT_DIR/01-session-limit-enforcement.sh"
 run_test "$SCRIPT_DIR/02-timing-attack-mitigation.sh"
 run_test "$SCRIPT_DIR/03-basic-auth-flow.sh"
+run_test "$SCRIPT_DIR/04-debug-controller-removed.sh"
 
 # Summary
 echo "=========================================="
