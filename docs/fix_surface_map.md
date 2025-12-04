@@ -10,33 +10,23 @@
 
 ### 1. MISSING FUNCTIONALITY (Blocking Testability)
 
-#### 🔴 **Session Limit Enforcement** - NOT IMPLEMENTED
+#### ✅ **Session Limit Enforcement** - IMPLEMENTED
 **Current State:**
 - Config has `max-active-sessions: 5`
-- No enforcement logic exists
-- Users can create unlimited sessions
+- ✅ Enforcement logic implemented in `TokenService.createTokens()`
+- ✅ When session count reaches limit, oldest session is automatically revoked
+- ✅ Audit logging added for security monitoring
+- ✅ Transaction safety ensured with `@Transactional`
 
-**Required Fix:**
-```java
-// In LoginService.java or AuthService.java
-public TokenResponse login(...) {
-    // After password validation, before creating new session:
-    List<RefreshTokenEntity> activeSessions = 
-        refreshTokenRepository.findActiveByUserId(user.getId());
-    
-    if (activeSessions.size() >= maxActiveSessions) {
-        // Revoke oldest session
-        activeSessions.stream()
-            .min(Comparator.comparing(RefreshTokenEntity::getCreatedAt))
-            .ifPresent(oldest -> refreshTokenRepository.revokeOne(oldest.getId()));
-    }
-    // Continue with token creation...
-}
-```
+**Implementation:**
+- Fixed in `TokenService.java` lines 50-79
+- Added `AuditLogService.logSessionRevoked()` method
+- Added `AuditEvent.SESSION_REVOKED` enum value
+- Logging with SLF4J for revocation events
 
-**Effort:** 4 hours  
+**Status:** ✅ **FIXED (2025-12-04)**  
 **Priority:** 🔴 CRITICAL  
-**Risk if Not Fixed:** Resource exhaustion, denial of service, untestable session limits
+**Verified:** Pending manual testing
 
 ---
 

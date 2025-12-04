@@ -395,9 +395,9 @@ X-Admin-Secret: <admin_secret>
 
 ### Auth Service (P0 - High Priority)
 
-3. **🔴 Session Limit Not Enforced** (4 hours to fix)
-   - **Risk**: Resource exhaustion, denial of service
-   - **Config**: `max-active-sessions: 5` declared but not implemented
+3. **✅ Session Limit Enforced** (FIXED - 2025-12-04)
+   - **Status**: Implemented and enforced
+   - **Config**: `max-active-sessions: 5` - now actively enforced in `TokenService.java`
 
 4. **🔴 Timing Attack Vulnerability** (4 hours to fix)
    - **Risk**: Username enumeration, account existence disclosure

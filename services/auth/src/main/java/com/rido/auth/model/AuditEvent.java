@@ -46,6 +46,11 @@ public enum AuditEvent {
     DEVICE_MISMATCH,
 
     /**
+     * Session was automatically revoked (e.g., due to session limit exceeded)
+     */
+    SESSION_REVOKED,
+
+    /**
      * User profile was updated
      */
     PROFILE_UPDATED
