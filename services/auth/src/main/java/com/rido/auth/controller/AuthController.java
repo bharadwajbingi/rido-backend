@@ -10,6 +10,7 @@ import com.rido.auth.service.TokenBlacklistService;
 import com.rido.auth.crypto.JwtKeyStore;
 import com.rido.auth.rate.RateLimiterService;
 import com.rido.auth.service.LoginAttemptService;
+import com.rido.auth.util.IpExtractorService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -43,6 +44,7 @@ public class AuthController {
     private final JwtKeyStore keyStore;
     private final RateLimiterService rateLimiter;
     private final LoginAttemptService loginAttemptService;
+    private final IpExtractorService ipExtractor;
 
     public AuthController(
             AuthService authService,
@@ -51,7 +53,8 @@ public class AuthController {
             RefreshTokenRepository refreshTokenRepository,
             JwtKeyStore keyStore,
             RateLimiterService rateLimiter,
-            LoginAttemptService loginAttemptService
+            LoginAttemptService loginAttemptService,
+            IpExtractorService ipExtractor
     ) {
         this.authService = authService;
         this.userRepository = userRepository;
@@ -60,6 +63,7 @@ public class AuthController {
         this.keyStore = keyStore;
         this.rateLimiter = rateLimiter;
         this.loginAttemptService = loginAttemptService;
+        this.ipExtractor = ipExtractor;
     }
 
     // =====================================================
@@ -90,7 +94,7 @@ public class AuthController {
             @Valid @RequestBody RegisterRequest req,
             HttpServletRequest request
     ) {
-        String ip = request.getRemoteAddr();
+        String ip = ipExtractor.extractClientIp(request); // Secure IP extraction
 
         log.info("auth_register_request", kv("username", req.username()), kv("ip", ip));
 
@@ -111,7 +115,7 @@ public class AuthController {
             @Valid @RequestBody LoginRequest req,
             HttpServletRequest request
     ) {
-        String ip = request.getRemoteAddr();
+        String ip = ipExtractor.extractClientIp(request); // Secure IP extraction
         String username = req.username();
         String deviceId = request.getHeader("X-Device-Id");
         String userAgent = request.getHeader("User-Agent");
@@ -172,7 +176,7 @@ public class AuthController {
             throw new InvalidCredentialsException("refreshToken missing");
         }
 
-        String ip = request.getRemoteAddr();
+        String ip = ipExtractor.extractClientIp(request); // Secure IP extraction
         String deviceId = request.getHeader("X-Device-Id");
         String userAgent = request.getHeader("User-Agent");
 

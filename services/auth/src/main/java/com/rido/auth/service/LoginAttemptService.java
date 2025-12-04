@@ -97,7 +97,7 @@ public class LoginAttemptService {
 
         loginAttemptCounter.increment();
 
-        // ⭐ FIX: lock is per USER, not per IP
+        // ⭐ USERNAME-BASED RATE LIMITING (prevents brute force on single account)
         String attemptsKey = "auth:login:attempts:" + username;
         Long attempts = redis.opsForValue().increment(attemptsKey);
 
@@ -105,11 +105,31 @@ public class LoginAttemptService {
             redis.expire(attemptsKey, ATTEMPT_TTL);
         }
 
+        // ⭐ IP-BASED RATE LIMITING (prevents distributed attacks)
+        String ipAttemptsKey = "auth:login:ip:attempts:" + ip;
+        Long ipAttempts = redis.opsForValue().increment(ipAttemptsKey);
+
+        if (ipAttempts == 1) {
+            redis.expire(ipAttemptsKey, ATTEMPT_TTL);
+        }
+
         logger.info("login_failure",
                 kv("username", username),
                 kv("ip", ip),
-                kv("attempts", attempts));
+                kv("attempts", attempts),
+                 kv("ipAttempts", ipAttempts));
 
+        // Check IP-based limit (20 failures from same IP)
+        if (ipAttempts != null && ipAttempts > 20) {
+            loginBlockedCounter.increment();
+            logger.warn("ip_rate_limit_exceeded",
+                    kv("ip", ip),
+                    kv("attempts", ipAttempts),
+                    kv("threshold", 20));
+            throw new AccountLockedException("Too many failed login attempts from this IP. Try again later.");
+        }
+
+        // Check username-based limit (5 failures per username)
         if (attempts != null && attempts > MAX_ATTEMPTS) {
             
             // ⭐ SKIP LOCKING FOR ADMINS

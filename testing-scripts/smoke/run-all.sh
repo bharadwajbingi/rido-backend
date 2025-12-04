@@ -45,6 +45,7 @@ run_test "$SCRIPT_DIR/02-timing-attack-mitigation.sh"
 run_test "$SCRIPT_DIR/03-basic-auth-flow.sh"
 run_test "$SCRIPT_DIR/04-debug-controller-removed.sh"
 run_test "$SCRIPT_DIR/05-session-cleanup-batching.sh"
+run_test "$SCRIPT_DIR/06-rate-limit-bypass-prevention.sh"
 
 # Summary
 echo "=========================================="
