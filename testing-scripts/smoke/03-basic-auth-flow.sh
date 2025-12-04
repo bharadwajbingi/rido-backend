@@ -29,15 +29,37 @@ PASSWORD="Test123Pass!"
 
 # Test 1: Registration
 echo "Test 1: User Registration"
-REGISTER=$(curl -s -X POST "$GATEWAY_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d "{\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\"}")
 
-if echo "$REGISTER" | grep -q "error"; then
-    echo "❌ Registration failed: $REGISTER"
+# Retry logic for rate limiting
+MAX_RETRIES=3
+RETRY_COUNT=0
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    REGISTER=$(curl -s -w "\n%{http_code}" -X POST "$GATEWAY_URL/auth/register" \
+      -H "Content-Type: application/json" \
+      -d "{\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\"}")
+    
+    HTTP_CODE=$(echo "$REGISTER" | tail -1)
+    BODY=$(echo "$REGISTER" | head -n -1)
+    
+    if [ "$HTTP_CODE" == "429" ]; then
+        echo "  ⚠️  Rate limited (429) - Rate limiter working correctly!"
+        echo "  Waiting 5 seconds before retry ($((RETRY_COUNT + 1))/$MAX_RETRIES)..."
+        sleep 5
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+    elif echo "$BODY" | grep -q "error"; then
+        echo "❌ Registration failed: $BODY"
+        exit 1
+    else
+        echo "✅ PASS: User registered successfully"
+        break
+    fi
+done
+
+if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+    echo "❌ FAIL: Registration failed after $MAX_RETRIES retries (rate limited)"
+    echo "  Note: Rate limiter is working, but test needs longer wait"
     exit 1
 fi
-echo "✅ PASS: User registered successfully"
 echo ""
 
 # Test 2: Login
