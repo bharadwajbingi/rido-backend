@@ -1,55 +1,39 @@
-# 🔐 Auth Service
+# Rido Auth Service
 
-The **Auth Service** is the security core of the Rido backend, handling user identity, authentication, and session management.
+The central authentication and authorization service for the Rido platform.
 
-## 🏗️ Architecture & Features
+## Features
 
-```mermaid
-graph TD
-    Client[📱 Client Apps] -->|HTTPS / JWT| Gateway[🛡️ API Gateway]
-    Gateway -->|mTLS / X-User-ID| Auth[🔐 Auth Service]
+- **User Management**: Registration, Login, Profile
+- **Token Management**: JWT Access & Refresh Tokens, Blacklisting
+- **Security**: Rate Limiting, Account Lockout, Key Rotation
+- **Admin**: Internal admin management, Bootstrap admin
+- **Observability**: Prometheus metrics, OpenTelemetry tracing
 
-    subgraph "Core Features"
-        Auth -->|1. Protect| RateLimit[🚦 Rate Limiting]
-        Auth -->|2. Guard| Lockout[🚫 Account Lockout]
-        Auth -->|3. Sign| Keys[🔑 Key Rotation]
-        Auth -->|4. Track| Sessions[📱 Session Mgmt]
-        Auth -->|5. Bind| Device[📲 Device Binding]
-    end
+## Running Locally
 
-    RateLimit -.-> Redis[(🔴 Redis)]
-    Lockout -.-> Redis
-    Sessions -.-> DB[(🐘 Postgres)]
-    Keys -.-> Vault[(🔒 Vault)]
-    Device -.-> DB
-```
-
-## 📚 Documentation
-
-Detailed documentation is available in the following files:
-
-- **[📖 API Documentation](API_DOCUMENTATION.md)**
-  - Public Endpoints (Register, Login, etc.)
-  - Internal Admin APIs
-  - Request/Response Models
-
-- **[🏗️ System Architecture](SYSTEM_ARCHITECTURE.md)**
-  - Security Features (Rate Limiting, Lockout, mTLS)
-  - Key Rotation & Vault Integration
-  - Infrastructure Dependencies (Redis, Postgres)
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Java 21
-- Docker (for Postgres/Redis/Vault)
-
-### Run Locally
+### Standalone
 ```bash
-./gradlew bootRun
+./gradlew :services:auth:bootRun
 ```
 
-### Run Tests
+### Docker
 ```bash
-./gradlew test
+cd ../../infra
+docker-compose up -d auth
 ```
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SERVER_PORT` | Service port | `8443` |
+| `POSTGRES_HOST` | Database host | `localhost` |
+| `REDIS_HOST` | Redis host | `localhost` |
+| `JWT_SECRET` | HS256 Secret Key | (Required) |
+| `JWT_EXPIRATION_MS` | Access token TTL | `900000` (15m) |
+| `JWT_REFRESH_TTL` | Refresh token TTL | `86400000` (24h) |
+
+## API Documentation
+
+See [openapi/auth.yaml](../../openapi/auth.yaml) for the full API specification.

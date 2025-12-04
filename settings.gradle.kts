@@ -1,3 +1,10 @@
+pluginManagement {
+    includeBuild("build-logic")
+}
+
 rootProject.name = "rido"
-include("gateway")
-include("profile")
+
+// Phase 3: Services moved to services/ folder
+include("services:auth")
+include("services:gateway")
+include("services:profile")

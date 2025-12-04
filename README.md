@@ -1,45 +1,62 @@
 # Rido — Real-Time Ride-Hailing Backend
 
+> ⚠️ **PRODUCTION READINESS STATUS**: This codebase requires **4-6 weeks of critical fixes** before production deployment. See [Fix Surface Map](docs/fix_surface_map.md) for details.
+
 A modern backend inspired by Uber/Ola, built with microservices, WebFlux, Redis, PostgreSQL, Kafka, Docker, and JWT.
+
+## 📋 Project Status (2025-12-04)
+
+**Current Phase**: Active Development + Comprehensive Analysis Completed  
+**Production Ready**: ❌ NO - Critical security fixes required  
+**Test Coverage**: ❌ 0% - Test suite not implemented  
+**Security Audit**: ✅ Completed - [See Critical Gaps](#-critical-security-gaps)
+
+### 📊 Comprehensive Analysis Deliverables
+
+1. **[Capability Map](docs/capability_map.md)** - Complete feature inventory across all services (80+ files analyzed)
+2. **[Testing Surface Map](docs/testing_surface_map.md)** - 380+ required test cases with gap analysis
+3. **[Fix Surface Map](docs/fix_surface_map.md)** - 60+ critical fixes before testing (4-6 weeks effort)
 
 ## 🏗 Architecture Overview
 
-Rido is designed with five microservices:
+Rido is designed with three operational microservices:
 
-### 1. API Gateway (Kotlin)
+### 1. API Gateway (Kotlin + Spring Cloud Gateway)
 
-- Central routing
+- Central routing to backend services
 - **RS256 JWT validation** with JWKS integration
 - **Security context propagation** (X-User-Id, X-User-Roles headers)
 - JWT audience/issuer validation
 - Token blacklist checking (Redis)
-- Rate-limiting integration
+- ⚠️ **Missing**: Circuit breakers, rate limiting, request logging
 
-### 2. Auth Service (Java)
+### 2. Auth Service (Java + Spring Boot)
 
-- Signup / login
-- **Argon2id password hashing**
-- **Refresh token rotation** with replay attack detection
-- **RS256 JWT signing** with rotating keys (JWKS)
-- Redis brute-force protection
-- **Security context extraction** from Gateway headers
-- Role-based access control (@PreAuthorize)
+- User registration, login, logout
+- **Argon2id password hashing** (production-grade)
+- **Refresh token rotation** with device binding
+- **RS256 JWT signing** with rotating keys stored in Vault
+- **Public JWKS endpoint** for Gateway validation
+- **Dual-port architecture**: Public (8081) + Admin (9091)
+- Redis-based rate limiting and account lockout
+- **Session management**: Multi-device support, revocation
+- ⚠️ **Missing**: Session limit enforcement, password reset, replay protection
 
-### 3. Matching Service (Upcoming)
+### 3. Profile Service (Kotlin + R2DBC)
 
-- Driver assignment
-- Redis GEO for proximity
-- Kafka for real-time matching
+- User profile management (CRUD)
+- Rider address management
+- Driver document upload and verification
+- Admin document approval/rejection
+- Kafka event publishing (profile.updated, driver.approved)
+- ⚠️ **CRITICAL**: Admin authorization NOT enforced - any user can approve documents
+- ⚠️ **CRITICAL**: Document ownership NOT validated - users can upload for others
 
-### 4. Trips Service (Upcoming)
+### 4. Future Services (Not Started)
 
-- Trip lifecycle
-- Event-driven state machine
-
-### 5. Payments Service (Upcoming)
-
-- Mock payments
-- Retry logic + DLQ
+- **Matching Service**: Driver assignment, Redis GEO, Kafka
+- **Trips Service**: Trip lifecycle, state machine
+- **Payments Service**: Payment processing, retry logic
 
 ## 🔧 Tech Stack
 
@@ -353,44 +370,93 @@ X-User-Roles: ADMIN
 X-Admin-Secret: <admin_secret>
 ```
 
-## 📊 Current Progress
+## 📊 Service Maturity Assessment
 
-| Service          | Status                            | Completion |
-| ---------------- | --------------------------------- | ---------- |
-| Auth Service     | JWT + Security Context ✅         | ~85%       |
-| API Gateway      | JWT Validation + Routing ✅       | ~90%       |
-| Matching Service | Not started                       | 0%         |
-| Trips Service    | Not started                       | 0%         |
-| Payments Service | Not started                       | 0%         |
-| Infrastructure   | Docker Compose + Redis ✅         | ~70%       |
+| Service          | Features | Security | Stability | Tests | Production Ready? |
+| ---------------- | -------- | -------- | --------- | ----- | ----------------- |
+| Auth Service     | 70%      | 65%      | 60%       | 0%    | ❌ 4-6 weeks      |
+| API Gateway      | 60%      | 70%      | 40%       | 0%    | ❌ 2-3 weeks      |
+| Profile Service  | 65%      | **30%**  | 55%       | 0%    | ❌ **CRITICAL GAPS** |
+| Infrastructure   | 70%      | 50%      | 60%       | N/A   | ❌ HA not configured |
+
+## 🚨 Critical Security Gaps
+
+### Profile Service (P0 - MUST FIX IMMEDIATELY)
+
+1. **🔴 Admin Authorization Bypass** (2 hours to fix)
+   - **Risk**: ANY authenticated user can approve/reject driver documents
+   - **Impact**: Complete breakdown of document verification process
+   - **Location**: `AdminController.kt` - missing role validation
+
+2. **🔴 Document Ownership Vulnerability** (1 hour to fix)
+   - **Risk**: User A can upload documents for User B's driver profile
+   - **Impact**: Identity theft, document fraud, compliance violation
+   - **Location**: `DriverDocumentController.kt` - no ownership check
+
+### Auth Service (P0 - High Priority)
+
+3. **🔴 Session Limit Not Enforced** (4 hours to fix)
+   - **Risk**: Resource exhaustion, denial of service
+   - **Config**: `max-active-sessions: 5` declared but not implemented
+
+4. **🔴 Timing Attack Vulnerability** (4 hours to fix)
+   - **Risk**: Username enumeration, account existence disclosure
+   - **Impact**: Aids targeted attacks
+
+### Gateway (P0 - High Priority)
+
+5. **🔴 No Circuit Breakers** (1 day to fix)
+   - **Risk**: Cascading failures across entire platform
+   - **Impact**: Total system outage if one service degrades
+
+6. **🔴 No Rate Limiting** (4 hours to fix)
+   - **Risk**: DDoS vulnerability, backend overload
+   - **Impact**: Service unavailability
+
+### Infrastructure (P0)
+
+7. **🔴 Single Point of Failure - Redis** (2 days to fix)
+   - **Risk**: Total auth/rate-limiting failure if Redis crashes
+   - **Solution**: Redis Sentinel/Cluster configuration
+
+8. **🔴 Hardcoded Secrets** (4 hours to fix)
+   - **Risk**: Credential leakage, security audit failure
+   - **Location**: Vault token in `application.yml`, DB passwords in Profile
+
+**Total P0 Fixes**: 24 critical issues, **4-6 weeks effort**
+
+See [Fix Surface Map](docs/fix_surface_map.md) for complete remediation roadmap.
 
 ## 🔥 Recent Accomplishments
 
-### Latest Work (Current Commit)
+### Comprehensive Codebase Analysis (2025-12-04)
 
-1. **✅ Fixed Security Context Propagation**
-   - Resolved case-sensitive header bug (X-User-Id vs x-user-id)
-   - Gateway correctly injects headers to Auth service
-   - Auth service populates Spring Security context
-   - Role-based access control working end-to-end
+1. **✅ Complete Capability Mapping**
+   - Analyzed 80+ files across 3 services
+   - Documented all 23 endpoints, security mechanisms, data models
+   - Identified all cross-service interactions
+   - Mapped all external dependencies (Redis, PostgreSQL, Vault, Kafka)
 
-2. **✅ Fixed JWT Validation Flow**
-   - Gateway validates RS256 signatures using JWKS
-   - Proper issuer and audience claim validation
-   - Token blacklist checking via Redis
-   - Audience handled as collection instead of single string
+2. **✅ Exhaustive Testing Surface Map**
+   - Identified 380+ required test cases
+   - Documented 90+ critical test gaps
+   - Categorized by: endpoint tests, security tests, flow tests, load tests
+   - Estimated effort: 16-20 weeks for comprehensive coverage
 
-3. **✅ Improved Testing Infrastructure**
-   - Organized 8 automated test scripts
-   - Created comprehensive Postman collection
-   - All tests passing (security context, JWT validation, token rotation)
-   - Removed unnecessary load tests
+3. **✅ Critical Fix Identification**
+   - 60+ fixes documented with code examples
+   - Prioritized: P0 (4-6 weeks), P1 (3-4 weeks), P2 (2-3 weeks)
+   - Security patches, architectural corrections, dependency fixes
+   - Zero-downtime deployment requirements
 
-4. **✅ Configuration & Documentation**
-   - Added Redis configuration for both services
-   - Created POSTMAN_TESTING.md guide
-   - Updated testing-scripts/README.md
-   - Comprehensive walkthrough documentation
+### Previous Security Implementation
+
+- ✅ RS256 JWT with JWKS rotation
+- ✅ Refresh token rotation with device binding
+- ✅ Argon2id password hashing
+- ✅ Redis rate limiting and account lockout
+- ✅ Dual-port admin architecture
+- ✅ mTLS between Gateway and Auth
 
 ### Previous Work (Last Commit)
 
@@ -434,4 +500,36 @@ This project is currently in development.
 
 ---
 
-**Status**: 🏗 In Active Development | **Latest**: Security Context Propagation ✅ | **Next**: Matching Service (Redis GEO + Kafka)
+## 📚 Documentation
+
+- **[Capability Map](docs/capability_map.md)** - Complete feature inventory and system capabilities
+- **[Testing Surface Map](docs/testing_surface_map.md)** - Required test cases and coverage gaps
+- **[Fix Surface Map](docs/fix_surface_map.md)** - Critical fixes and remediation timeline
+- **[High Level Design](HIGH_LEVEL_DESIGN.md)** - Architecture and design decisions
+- **[ADR 001](docs/adr/001-monorepo-structure.md)** - Monorepo structure decision
+
+## 🎯 Next Steps (Prioritized)
+
+### Immediate (Week 1-2) - Critical Security
+1. Fix Profile admin authorization (2h)
+2. Fix Profile document ownership (1h)  
+3. Fix timing attack vulnerability (4h)
+4. Remove hardcoded secrets (4h)
+5. Add input validation (1d)
+
+### Short-term (Week 3-6) - Stability
+1. Implement circuit breakers (1d)
+2. Configure Redis HA (2d)
+3. Add Gateway rate limiting (4h)
+4. Implement session limit enforcement (4h)
+5. Add distributed tracing (1d)
+
+### Medium-term (Week 7-12) - Testing
+1. Implement P0 test suite (200+ tests)
+2. Add integration tests
+3. Performance/load testing
+4. Security penetration testing
+
+---
+
+**Status**: 🏗 Active Development + Analysis Complete | **Critical**: Security Fixes Required | **Timeline**: 4-6 weeks to MVP | **Next**: Fix Profile Authorization

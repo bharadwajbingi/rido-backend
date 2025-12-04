@@ -96,8 +96,8 @@ services:
   # ===========================
   auth:
     build:
-      context: ../auth
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/auth.Dockerfile
     container_name: auth
     depends_on:
       postgres:
@@ -171,8 +171,8 @@ services:
   # ===========================
   profile:
     build:
-      context: ../profile
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/profile.Dockerfile
     container_name: profile
     depends_on:
       postgres:
@@ -205,8 +205,8 @@ services:
   # ===========================
   gateway:
     build:
-      context: ../gateway
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/gateway.Dockerfile
     container_name: gateway
     depends_on:
       auth:

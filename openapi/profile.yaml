@@ -1,0 +1,93 @@
+openapi: 3.0.3
+info:
+  title: Rido Profile Service API
+  description: User profile and document management service.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Gateway URL
+
+paths:
+  /profile/me:
+    get:
+      summary: Get current user profile
+      tags: [Profile]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Profile details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+    put:
+      summary: Update user profile
+      tags: [Profile]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        200:
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+
+  /profile/documents:
+    post:
+      summary: Upload driver documents
+      tags: [Documents]
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                type:
+                  type: string
+                  enum: [LICENSE, INSURANCE, REGISTRATION]
+      responses:
+        201:
+          description: Document uploaded
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        rating:
+          type: number
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string

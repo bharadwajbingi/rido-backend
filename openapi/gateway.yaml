@@ -1,0 +1,22 @@
+openapi: 3.0.3
+info:
+  title: Rido Gateway API
+  description: API Gateway routing and aggregation.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Public Gateway
+
+paths:
+  /auth/**:
+    x-summary: Routes to Auth Service
+  
+  /profile/**:
+    x-summary: Routes to Profile Service
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
