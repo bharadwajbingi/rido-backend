@@ -7,6 +7,7 @@ import com.rido.auth.repo.AuditLogRepository;
 import com.rido.auth.service.AdminLoginService;
 import com.rido.auth.service.AuditLogService;
 import com.rido.auth.service.UserRegistrationService;
+import com.rido.auth.util.IpExtractorService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,19 +36,22 @@ public class AdminController {
     private final JwtKeyStore keyStore;
     private final AuditLogService auditLogService;
     private final AuditLogRepository auditLogRepository;
+    private final IpExtractorService ipExtractor;
 
     public AdminController(
             AdminLoginService adminLoginService,
             UserRegistrationService userRegistrationService,
             JwtKeyStore keyStore,
             AuditLogService auditLogService,
-            AuditLogRepository auditLogRepository
+            AuditLogRepository auditLogRepository,
+            IpExtractorService ipExtractor
     ) {
         this.adminLoginService = adminLoginService;
         this.userRegistrationService = userRegistrationService;
         this.keyStore = keyStore;
         this.auditLogService = auditLogService;
         this.auditLogRepository = auditLogRepository;
+        this.ipExtractor = ipExtractor;
     }
 
     // =====================================================
@@ -73,7 +77,7 @@ public class AdminController {
             return ResponseEntity.badRequest().body(Map.of("error", "Username and password required"));
         }
 
-        String ip = request.getRemoteAddr();
+        String ip = ipExtractor.extractClientIp(request); // Secure IP extraction (admin port)
         String userAgent = request.getHeader("User-Agent");
 
         TokenResponse tokens = adminLoginService.login(username, password, ip, userAgent);
@@ -98,7 +102,7 @@ public class AdminController {
 
         // Get creator info from request (set by AdminAuthenticationFilter)
         String creatorId = (String) request.getAttribute("userId");
-        String ip = request.getRemoteAddr();
+        String ip = ipExtractor.extractClientIp(request); // Secure IP extraction (admin port)
 
         log.info("admin_create_request: Creator {} creating admin {}", creatorId, username);
 
