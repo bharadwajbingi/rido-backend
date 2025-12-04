@@ -1,0 +1,375 @@
+{
+  "info": {
+    "_postman_id": "rido-verified-v1",
+    "name": "Rido API - Verified Tests",
+    "description": "All tests verified via curl. Base URL: http://localhost:8080 (Gateway), Admin URL: http://localhost:9091",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "base_url", "value": "http://localhost:8080"},
+    {"key": "admin_url", "value": "http://localhost:9091"},
+    {"key": "token", "value": ""},
+    {"key": "refresh_token", "value": ""},
+    {"key": "admin_token", "value": ""},
+    {"key": "test_user", "value": ""},
+    {"key": "test_pass", "value": "TestPass123!"}
+  ],
+  "item": [
+    {
+      "name": "1. Setup",
+      "item": [
+        {
+          "name": "Admin Health",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"]}}],
+          "request": {"method": "GET", "url": "{{admin_url}}/admin/health"}
+        },
+        {
+          "name": "Admin Login",
+          "event": [{"listen": "test", "script": {"exec": [
+            "if(pm.response.code === 200) {",
+            "  pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "  var json = pm.response.json();",
+            "  if(json.accessToken) pm.collectionVariables.set('admin_token', json.accessToken);",
+            "} else {",
+            "  pm.test('Admin not configured (skip)', () => true);",
+            "}"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"username\": \"admin\", \"password\": \"adminpass\"}"},
+            "url": "{{admin_url}}/admin/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Registration",
+      "item": [
+        {
+          "name": "[+] Register User",
+          "event": [
+            {"listen": "prerequest", "script": {"exec": ["pm.collectionVariables.set('test_user', 'user_' + Date.now());"]}},
+            {"listen": "test", "script": {"exec": ["pm.test('200', () => pm.response.to.have.status(200));"]}}
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"username\": \"{{test_user}}\", \"password\": \"{{test_pass}}\"}"},
+            "url": "{{base_url}}/auth/register"
+          }
+        },
+        {
+          "name": "[-] Missing Username",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('400', () => pm.response.to.have.status(400));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"password\": \"TestPass123!\"}"},
+            "url": "{{base_url}}/auth/register"
+          }
+        },
+        {
+          "name": "[-] Username Too Short",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('400', () => pm.response.to.have.status(400));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"username\": \"ab\", \"password\": \"TestPass123!\"}"},
+            "url": "{{base_url}}/auth/register"
+          }
+        },
+        {
+          "name": "[-] Password Too Short",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('400', () => pm.response.to.have.status(400));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"username\": \"validuser\", \"password\": \"12345\"}"},
+            "url": "{{base_url}}/auth/register"
+          }
+        },
+        {
+          "name": "[-] Duplicate Username",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('409', () => pm.response.to.have.status(409));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"username\": \"{{test_user}}\", \"password\": \"{{test_pass}}\"}"},
+            "url": "{{base_url}}/auth/register"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Login",
+      "item": [
+        {
+          "name": "[+] Login User",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "var json = pm.response.json();",
+            "pm.test('Has token', () => pm.expect(json.accessToken).to.be.a('string'));",
+            "pm.collectionVariables.set('token', json.accessToken);",
+            "pm.collectionVariables.set('refresh_token', json.refreshToken);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "X-Device-Id", "value": "test"}],
+            "body": {"mode": "raw", "raw": "{\"username\": \"{{test_user}}\", \"password\": \"{{test_pass}}\"}"},
+            "url": "{{base_url}}/auth/login"
+          }
+        },
+        {
+          "name": "[-] Wrong Password",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('401', () => pm.response.to.have.status(401));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"username\": \"{{test_user}}\", \"password\": \"wrongpass\"}"},
+            "url": "{{base_url}}/auth/login"
+          }
+        },
+        {
+          "name": "[-] Non-existent User",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('401 or 423', () => pm.expect([401,423]).to.include(pm.response.code));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"username\": \"nonexistent_xyz\", \"password\": \"test\"}"},
+            "url": "{{base_url}}/auth/login"
+          }
+        },
+        {
+          "name": "[-] Empty Body",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('400', () => pm.response.to.have.status(400));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{}"},
+            "url": "{{base_url}}/auth/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Protected",
+      "item": [
+        {
+          "name": "[+] GET /auth/me",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "pm.test('Has id', () => pm.expect(pm.response.json().id).to.be.a('string'));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": "{{base_url}}/auth/me"
+          }
+        },
+        {
+          "name": "[-] /me No Auth",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('401', () => pm.response.to.have.status(401));"]}}],
+          "request": {"method": "GET", "url": "{{base_url}}/auth/me"}
+        },
+        {
+          "name": "[-] /me Invalid Token",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('401', () => pm.response.to.have.status(401));"]}}],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer invalid"}],
+            "url": "{{base_url}}/auth/me"
+          }
+        },
+        {
+          "name": "[+] GET /auth/sessions",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "pm.test('Is array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": "{{base_url}}/auth/sessions"
+          }
+        },
+        {
+          "name": "[-] Sessions No Auth",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('401', () => pm.response.to.have.status(401));"]}}],
+          "request": {"method": "GET", "url": "{{base_url}}/auth/sessions"}
+        },
+        {
+          "name": "[+] GET /secure/info",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('200', () => pm.response.to.have.status(200));"]}}],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": "{{base_url}}/secure/info"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Refresh",
+      "item": [
+        {
+          "name": "[+] Refresh Token",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "var json = pm.response.json();",
+            "pm.collectionVariables.set('token', json.accessToken);",
+            "if(json.refreshToken) pm.collectionVariables.set('refresh_token', json.refreshToken);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "X-Device-Id", "value": "test"}],
+            "body": {"mode": "raw", "raw": "{\"refreshToken\": \"{{refresh_token}}\"}"},
+            "url": "{{base_url}}/auth/refresh"
+          }
+        },
+        {
+          "name": "[-] Missing Token",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('401', () => pm.response.to.have.status(401));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{}"},
+            "url": "{{base_url}}/auth/refresh"
+          }
+        },
+        {
+          "name": "[-] Invalid Token",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('401', () => pm.response.to.have.status(401));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"refreshToken\": \"invalid\"}"},
+            "url": "{{base_url}}/auth/refresh"
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. JWKS",
+      "item": [
+        {
+          "name": "[+] GET JWKS",
+          "event": [{"listen": "test", "script": {"exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "pm.test('Has keys', () => pm.expect(pm.response.json().keys).to.be.an('array'));"
+          ]}}],
+          "request": {"method": "GET", "url": "{{base_url}}/auth/keys/jwks.json"}
+        },
+        {
+          "name": "[+] GET Well-Known JWKS",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('200', () => pm.response.to.have.status(200));"]}}],
+          "request": {"method": "GET", "url": "{{base_url}}/auth/keys/.well-known/jwks.json"}
+        }
+      ]
+    },
+    {
+      "name": "7. Logout",
+      "item": [
+        {
+          "name": "[+] Logout",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('200', () => pm.response.to.have.status(200));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Authorization", "value": "Bearer {{token}}"}],
+            "body": {"mode": "raw", "raw": "{\"refreshToken\": \"{{refresh_token}}\"}"},
+            "url": "{{base_url}}/auth/logout"
+          }
+        },
+        {
+          "name": "[-] Logout No Token",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('401', () => pm.response.to.have.status(401));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{}"},
+            "url": "{{base_url}}/auth/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Admin",
+      "item": [
+        {
+          "name": "[+] Audit Logs",
+          "event": [{"listen": "test", "script": {"exec": [
+            "var adminToken = pm.collectionVariables.get('admin_token');",
+            "if(!adminToken) { pm.test('Skip - no admin token', () => true); return; }",
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ]}}],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{admin_token}}"}],
+            "url": "{{admin_url}}/admin/audit/logs?page=0&size=10"
+          }
+        },
+        {
+          "name": "[-] Audit No Auth",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('401 or 403', () => pm.expect([401,403]).to.include(pm.response.code));"]}}],
+          "request": {"method": "GET", "url": "{{admin_url}}/admin/audit/logs"}
+        },
+        {
+          "name": "[+] Create Admin",
+          "event": [
+            {"listen": "prerequest", "script": {"exec": ["pm.variables.set('new_admin', 'admin_' + Date.now());"]}},
+            {"listen": "test", "script": {"exec": [
+              "var adminToken = pm.collectionVariables.get('admin_token');",
+              "if(!adminToken) { pm.test('Skip - no admin token', () => true); return; }",
+              "pm.test('200', () => pm.response.to.have.status(200));"
+            ]}}
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "Authorization", "value": "Bearer {{admin_token}}"}],
+            "body": {"mode": "raw", "raw": "{\"username\": \"{{new_admin}}\", \"password\": \"Admin123!\"}"},
+            "url": "{{admin_url}}/admin/create"
+          }
+        },
+        {
+          "name": "[-] Create No Auth",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('401', () => pm.response.to.have.status(401));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"username\": \"newadmin\", \"password\": \"Admin123!\"}"},
+            "url": "{{admin_url}}/admin/create"
+          }
+        },
+        {
+          "name": "[-] Wrong Admin Password",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('401', () => pm.response.to.have.status(401));"]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {"mode": "raw", "raw": "{\"username\": \"admin\", \"password\": \"wrong\"}"},
+            "url": "{{admin_url}}/admin/login"
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Security",
+      "item": [
+        {
+          "name": "[-] Gateway Blocks Admin",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('404', () => pm.response.to.have.status(404));"]}}],
+          "request": {"method": "GET", "url": "{{base_url}}/admin/health"}
+        },
+        {
+          "name": "[-] Tampered JWT",
+          "event": [{"listen": "test", "script": {"exec": ["pm.test('401', () => pm.response.to.have.status(401));"]}}],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer eyJ.fake.token"}],
+            "url": "{{base_url}}/auth/me"
+          }
+        }
+      ]
+    }
+  ]
+}

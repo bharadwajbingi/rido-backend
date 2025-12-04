@@ -1,0 +1,25 @@
+{
+  "id": "rido-env-001",
+  "name": "Rido Microservices Environment",
+  "values": [
+    {"key": "auth_base_url", "value": "http://localhost:8080", "enabled": true},
+    {"key": "admin_base_url", "value": "http://localhost:9091", "enabled": true},
+    {"key": "gateway_base_url", "value": "http://localhost:8080", "enabled": true},
+    {"key": "profile_base_url", "value": "http://localhost:8082", "enabled": true},
+    {"key": "auth_token", "value": "", "enabled": true},
+    {"key": "admin_token", "value": "", "enabled": true},
+    {"key": "refresh_token", "value": "", "enabled": true},
+    {"key": "user_id", "value": "", "enabled": true},
+    {"key": "session_id", "value": "", "enabled": true},
+    {"key": "test_username", "value": "testuser_{{$timestamp}}", "enabled": true},
+    {"key": "test_password", "value": "TestPass123!", "enabled": true},
+    {"key": "admin_username", "value": "admin", "enabled": true},
+    {"key": "admin_password", "value": "adminpass", "enabled": true},
+    {"key": "device_id", "value": "test-device-001", "enabled": true},
+    {"key": "invalid_token", "value": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.invalid.signature", "enabled": true},
+    {"key": "expired_token", "value": "", "enabled": true},
+    {"key": "document_id", "value": "", "enabled": true},
+    {"key": "address_id", "value": "", "enabled": true}
+  ],
+  "_postman_variable_scope": "environment"
+}

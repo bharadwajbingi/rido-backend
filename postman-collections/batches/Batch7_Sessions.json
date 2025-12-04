@@ -1,0 +1,398 @@
+{
+  "info": {
+    "_postman_id": "rido-batch-7",
+    "name": "Rido Tests - Batch7_Sessions",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "admin_url",
+      "value": "http://localhost:9091"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "refresh_token",
+      "value": ""
+    },
+    {
+      "key": "admin_token",
+      "value": ""
+    },
+    {
+      "key": "user_id",
+      "value": ""
+    },
+    {
+      "key": "test_user",
+      "value": ""
+    },
+    {
+      "key": "test_pass",
+      "value": "TestPass123!"
+    },
+    {
+      "key": "session_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "10-Sessions (15 tests)",
+      "item": [
+        {
+          "name": "[+] Re-login for sessions",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Device-Id",
+                "value": "session-test"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"{{test_user}}\",\"password\":\"{{test_pass}}\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var j=pm.response.json();pm.collectionVariables.set('token',j.accessToken);pm.collectionVariables.set('refresh_token',j.refreshToken);pm.test('200',()=>pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[+] List sessions",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/sessions",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200',()=>pm.response.to.have.status(200));var s=pm.response.json();if(s.length>0)pm.collectionVariables.set('session_id',s[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[+] Sessions is array",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/sessions",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('isArray',()=>pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[-] Sessions no auth",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/sessions",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401',()=>pm.expect([401,423]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[-] Sessions invalid token",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/sessions",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer invalid"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401',()=>pm.expect([401,423]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[+] Revoke all sessions",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/sessions/revoke-all",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200',()=>pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[-] Revoke all no auth",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/sessions/revoke-all",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401',()=>pm.expect([401,423]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[+] Re-login after revoke",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Device-Id",
+                "value": "new-session"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"{{test_user}}\",\"password\":\"{{test_pass}}\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var j=pm.response.json();pm.collectionVariables.set('token',j.accessToken);pm.test('200',()=>pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[+] Get new sessions",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/sessions",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200',()=>pm.response.to.have.status(200));var s=pm.response.json();if(s.length>0)pm.collectionVariables.set('session_id',s[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[+] Revoke single session",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/sessions/{{session_id}}/revoke",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200|404',()=>pm.expect([200,404]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[-] Revoke invalid session",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/sessions/invalid-id/revoke",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400|404',()=>pm.expect([400,404]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[-] Revoke no auth",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/sessions/{{session_id}}/revoke",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401',()=>pm.expect([401,423]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[-] Session random 1",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/sessions",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer session_invalid_1"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401',()=>pm.expect([401,423]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[-] Session random 2",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/sessions",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer session_invalid_2"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401',()=>pm.expect([401,423]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[-] Session random 3",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/sessions",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer session_invalid_3"
+              }
+            ]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401',()=>pm.expect([401,423]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
