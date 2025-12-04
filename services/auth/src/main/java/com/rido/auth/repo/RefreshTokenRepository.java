@@ -75,6 +75,26 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshTokenEntity
 @Query("DELETE FROM RefreshTokenEntity r WHERE r.revoked = true OR r.expiresAt < :now")
 void deleteExpiredOrRevoked(@Param("now") Instant now);
 
+    // ============================================================
+    // CLEANUP: BATCHED DELETE EXPIRED + REVOKED (PRODUCTION-SAFE)
+    // ============================================================
+    /**
+     * Delete expired/revoked sessions in batches to prevent table locks.
+     * Uses native query with LIMIT for PostgreSQL optimization.
+     * 
+     * @param now Current timestamp
+     * @param limit Batch size (e.g., 1000)
+     * @return Number of rows deleted in this batch
+     */
+    @Modifying
+    @Transactional
+    @Query(value = "DELETE FROM refresh_tokens WHERE id IN (" +
+            "SELECT id FROM refresh_tokens " +
+            "WHERE revoked = true OR expires_at < :now " +
+            "LIMIT :limit" +
+            ")", nativeQuery = true)
+    int deleteExpiredOrRevokedBatch(@Param("now") Instant now, @Param("limit") int limit);
+
 
     // ============================================================
     // ACTIVE TOKEN COUNT (Prometheus gauge)
