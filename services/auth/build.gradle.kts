@@ -76,6 +76,11 @@ dependencies {
     // VAULT
     // ----------------------------
     implementation("org.springframework.cloud:spring-cloud-starter-vault-config")
+
+    // ----------------------------
+    // RESILIENCE4J (Circuit Breaker)
+    // ----------------------------
+    implementation("io.github.resilience4j:resilience4j-spring-boot3:2.2.0")
 }
 
 dependencyManagement {

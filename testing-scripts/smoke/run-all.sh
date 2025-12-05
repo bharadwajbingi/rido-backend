@@ -48,6 +48,7 @@ run_test "$SCRIPT_DIR/05-session-cleanup-batching.sh"
 run_test "$SCRIPT_DIR/06-rate-limit-bypass-prevention.sh"
 run_test "$SCRIPT_DIR/07-input-validation.sh"
 run_test "$SCRIPT_DIR/08-account-lockout.sh"
+run_test "$SCRIPT_DIR/09-redis-outage.sh"
 
 # Summary
 echo "=========================================="

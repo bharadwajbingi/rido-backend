@@ -53,6 +53,7 @@ public class TokenBlacklistService {
     // ======================================================
     // ✅ BLACKLIST ACCESS TOKEN (MANUAL JWT DECODE)
     // ======================================================
+    @io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker(name = "redis", fallbackMethod = "blacklistFallback")
     public void blacklist(String accessToken) {
         if (accessToken == null || accessToken.isBlank()) return;
 
@@ -123,11 +124,23 @@ public class TokenBlacklistService {
         }
     }
 
+    // FALLBACK: Log error but don't crash
+    public void blacklistFallback(String accessToken, Throwable t) {
+        log.error("blacklist_failed_redis_down", kv("error", t.getMessage()));
+    }
+
     // ======================================================
     // ✅ CHECK IF JTI IS BLACKLISTED
     // ======================================================
+    @io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker(name = "redis", fallbackMethod = "isBlacklistedFallback")
     public boolean isBlacklisted(String jti) {
         Boolean exists = redis.hasKey("auth:jti:blacklist:" + jti);
         return exists != null && exists;
+    }
+
+    // FALLBACK: Fail Open (Assume not blacklisted)
+    public boolean isBlacklistedFallback(String jti, Throwable t) {
+        log.warn("blacklist_check_skipped_redis_down", kv("jti", jti));
+        return false;
     }
 }
