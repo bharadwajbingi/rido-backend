@@ -26,6 +26,10 @@ public class GlobalExceptionHandler {
         String msg = e.getBindingResult().getFieldError() != null 
                 ? e.getBindingResult().getFieldError().getDefaultMessage() 
                 : "Validation failed";
+        // DEBUG LOG
+        System.out.println("VALIDATION FAILED: " + msg);
+        e.getBindingResult().getAllErrors().forEach(err -> System.out.println("Error: " + err));
+        
         ErrorResponse error = buildErrorResponse(HttpStatus.BAD_REQUEST, "Validation Error", msg, request);
         return ResponseEntity.badRequest().body(error);
     }
@@ -104,6 +108,7 @@ public class GlobalExceptionHandler {
     // ============================================
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception e, HttpServletRequest request) {
+        System.out.println("GENERIC EXCEPTION CAUGHT: " + e.getClass().getName() + " - " + e.getMessage());
         e.printStackTrace(); // Log the full stack trace
         ErrorResponse error = buildErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR, 

@@ -80,10 +80,11 @@ public class JwtUserAuthenticationFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
         } catch (Exception e) {
-            // Log the error for debugging
-            org.slf4j.LoggerFactory.getLogger(JwtUserAuthenticationFilter.class).error("JWT Authentication failed", e);
-            res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            return;
+            // Log the error for debugging but don't fail properly managed endpoints
+            org.slf4j.LoggerFactory.getLogger(JwtUserAuthenticationFilter.class).warn("JWT Authentication failed: {}", e.getMessage());
+            // For permitAll endpoints (like logout), we should continue.
+            // For authenticated endpoints, Spring Security will catch the missing authentication later (AccessDenied).
+            SecurityContextHolder.clearContext();
         }
 
         chain.doFilter(req, res);
