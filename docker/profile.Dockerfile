@@ -1,7 +1,8 @@
 FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /app
 COPY . .
-RUN ./gradlew :services:profile:bootJar -x test --no-daemon
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew :services:profile:bootJar -x test --no-daemon
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
