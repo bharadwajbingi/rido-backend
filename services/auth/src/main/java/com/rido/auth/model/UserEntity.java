@@ -28,15 +28,6 @@ public class UserEntity {
     // ------------------------------
     // Login security fields
     // ------------------------------
-    @Column(name = "failed_login_attempts", nullable = false)
-    private int failedLoginAttempts = 0;
-
-    @Column(name = "account_locked", nullable = false)
-    private boolean accountLocked = false;
-
-    @Column(name = "lockout_end_time")
-    private Instant lockoutEndTime;
-
     @Column(name = "locked_until")
     private Instant lockedUntil;
 
@@ -76,27 +67,6 @@ public class UserEntity {
     }
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
-    }
-
-    public int getFailedLoginAttempts() {
-        return failedLoginAttempts;
-    }
-    public void setFailedLoginAttempts(int failedLoginAttempts) {
-        this.failedLoginAttempts = failedLoginAttempts;
-    }
-
-    public boolean isAccountLocked() {
-        return accountLocked;
-    }
-    public void setAccountLocked(boolean accountLocked) {
-        this.accountLocked = accountLocked;
-    }
-
-    public Instant getLockoutEndTime() {
-        return lockoutEndTime;
-    }
-    public void setLockoutEndTime(Instant lockoutEndTime) {
-        this.lockoutEndTime = lockoutEndTime;
     }
 
     public Instant getLockedUntil() {
