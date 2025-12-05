@@ -36,6 +36,7 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
+    baseline-version: 1
 
   datasource:
     url: jdbc:postgresql://postgres:5432/ride_hailing
@@ -44,7 +45,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         format_sql: true
