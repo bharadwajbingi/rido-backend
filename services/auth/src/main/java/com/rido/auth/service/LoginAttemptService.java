@@ -48,6 +48,7 @@ public class LoginAttemptService {
     }
 
     // 🚫 CHECK BEFORE PASSWORD VALIDATION
+    @io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker(name = "redis", fallbackMethod = "ensureNotLockedFallback")
     public void ensureNotLocked(String username) {
 
         String lockedKey = "auth:login:locked:" + username;
@@ -63,6 +64,18 @@ public class LoginAttemptService {
             throw new AccountLockedException("Account locked due to too many failed attempts.");
         }
 
+        ensureNotLockedDbCheck(username);
+    }
+
+    // FALLBACK: Skip Redis check, rely on DB check only
+    public void ensureNotLockedFallback(String username, Throwable t) {
+        logger.warn("redis_down_fallback_check", 
+                kv("username", username), 
+                kv("error", t.getMessage()));
+        ensureNotLockedDbCheck(username);
+    }
+
+    private void ensureNotLockedDbCheck(String username) {
         // Check DB lock
         userRepository.findByUsername(username).ifPresent(user -> {
             Instant lockedUntil = user.getLockedUntil();
@@ -93,6 +106,7 @@ public class LoginAttemptService {
     }
 
     // ❌ FAILURE HANDLING
+    @io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker(name = "redis", fallbackMethod = "onFailureFallback")
     public void onFailure(String username, String ip, UserEntity user) {
 
         loginAttemptCounter.increment();
@@ -159,7 +173,19 @@ public class LoginAttemptService {
         }
     }
 
+    // FALLBACK: Skip rate limiting, but apply DB lock if possible
+    public void onFailureFallback(String username, String ip, UserEntity user, Throwable t) {
+        loginAttemptCounter.increment();
+        logger.error("redis_down_fallback_failure", kv("username", username), kv("error", t.getMessage()));
+        
+        // We can't track attempts without Redis, but we can't lock blindly.
+        // FAIL OPEN: Allow retry without incrementing counter.
+        // However, if we strongly suspect abuse, we *could* DB lock, but that's risky without counting.
+        // DECISION: Fail open (allow attempts), rely on existing DB lock if set.
+    }
+
     // ✔ CLEAR LOCK ON SUCCESSFUL LOGIN
+    @io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker(name = "redis", fallbackMethod = "onSuccessFallback")
     public void onSuccess(String username, String ip, UserEntity user) {
 
         redis.delete("auth:login:attempts:" + username);
@@ -173,6 +199,16 @@ public class LoginAttemptService {
         logger.info("login_success_reset",
                 kv("username", username),
                 kv("ip", ip));
+    }
+
+    // FALLBACK: Just clear DB lock
+    public void onSuccessFallback(String username, String ip, UserEntity user, Throwable t) {
+        logger.warn("redis_down_fallback_success", kv("username", username));
+        
+        if (user != null) {
+            user.setLockedUntil(null);
+            userRepository.save(user);
+        }
     }
 
     // 🧪 TEST UTILITY
