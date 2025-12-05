@@ -27,15 +27,18 @@ public class SecurityConfig {
     private final JwtUserAuthenticationFilter jwtFilter;
     private final ServiceAuthenticationFilter mtlsFilter;
     private final AdminAuthenticationFilter adminFilter;
+    private final com.rido.auth.security.InputSanitizationFilter sanitizationFilter;
 
     public SecurityConfig(
             JwtUserAuthenticationFilter jwtFilter,
             ServiceAuthenticationFilter mtlsFilter,
-            AdminAuthenticationFilter adminFilter
+            AdminAuthenticationFilter adminFilter,
+            com.rido.auth.security.InputSanitizationFilter sanitizationFilter
     ) {
         this.jwtFilter = jwtFilter;
         this.mtlsFilter = mtlsFilter;
         this.adminFilter = adminFilter;
+        this.sanitizationFilter = sanitizationFilter;
     }
 
     // =========================================================================
@@ -72,6 +75,9 @@ public class SecurityConfig {
             )
             .httpBasic(h -> h.disable())
             .formLogin(f -> f.disable());
+
+        // Input Sanitization
+        http.addFilterBefore(sanitizationFilter, UsernamePasswordAuthenticationFilter.class);
 
         // Admin JWT filter for authenticated endpoints
         http.addFilterBefore(adminFilter, UsernamePasswordAuthenticationFilter.class);
@@ -123,6 +129,9 @@ public class SecurityConfig {
             .httpBasic(h -> h.disable())
             .formLogin(f -> f.disable());
 
+        // Input Sanitization
+        http.addFilterBefore(sanitizationFilter, UsernamePasswordAuthenticationFilter.class);
+
         // Filter order:
         // 1. mTLS filter validates Gateway/Auth service identity
         http.addFilterBefore(mtlsFilter, UsernamePasswordAuthenticationFilter.class);
@@ -130,6 +139,11 @@ public class SecurityConfig {
         http.addFilterAfter(jwtFilter, ServiceAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    public org.springframework.validation.beanvalidation.LocalValidatorFactoryBean validator() {
+        return new org.springframework.validation.beanvalidation.LocalValidatorFactoryBean();
     }
 
     @Bean

@@ -94,6 +94,7 @@ public class AuthController {
             @Valid @RequestBody RegisterRequest req,
             HttpServletRequest request
     ) {
+        log.info("DEBUG: Entering register method with username: " + req.username());
         String ip = ipExtractor.extractClientIp(request); // Secure IP extraction
 
         log.info("auth_register_request", kv("username", req.username()), kv("ip", ip));

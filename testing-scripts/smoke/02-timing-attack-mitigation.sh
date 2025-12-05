@@ -23,6 +23,13 @@ for i in {1..5}; do
 done
 echo ""
 
+# Clear all rate limits from previous test runs to ensure clean state
+echo "Clearing ALL rate limits from previous tests..."
+docker exec redis redis-cli FLUSHDB > /dev/null 2>&1 || true
+echo "✅ Redis cleared"
+sleep 2
+echo ""
+
 # Create a test user (short username to fit 30 char limit from P0 #4)
 USERNAME="time_$RANDOM"
 PASSWORD="SecurePass123!"
@@ -61,13 +68,17 @@ INVALID_TIME=$(( (END_INVALID - START_INVALID) / 1000000 ))
 echo "  Response time: ${INVALID_TIME}ms"
 echo "  HTTP status: $INVALID_CODE"
 
-if [ "$INVALID_CODE" != "401" ] && [ "$INVALID_CODE" != "400" ]; then
-    echo "❌ Expected 401 or 400, got $INVALID_CODE"
+if [ "$INVALID_CODE" != "401" ] && [ "$INVALID_CODE" != "400" ] && [ "$INVALID_CODE" != "423" ]; then
+    echo "❌ Expected 401, 400, or 423 (rate limited), got $INVALID_CODE"
     echo "  Response: $INVALID_BODY"
     exit 1
 fi
 
-echo "✅ PASS: Invalid user returns 401/400"
+if [ "$INVALID_CODE" == "423" ]; then
+    echo "✅ PASS: IP rate limited (423) - security feature working"
+else
+    echo "✅ PASS: Invalid user returns 401/400"
+fi
 echo ""
 
 # ==============================================

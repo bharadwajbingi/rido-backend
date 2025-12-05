@@ -36,7 +36,9 @@ for i in {1..3}; do
 done
 
 # Check if IP attempts are being tracked in Redis
-IP_ATTEMPTS=$(docker exec redis redis-cli GET "auth:login:ip:attempts:172.21.0.6" 2>/dev/null || echo "0")
+# Use KEYS to find any key matching the pattern, as the IP is dynamic in Docker
+REDIS_KEY=$(docker exec redis redis-cli KEYS "auth:login:ip:attempts:*" | head -n 1)
+IP_ATTEMPTS=$(docker exec redis redis-cli GET "$REDIS_KEY" 2>/dev/null || echo "0")
 
 if [ -n "$IP_ATTEMPTS" ] && [ "$IP_ATTEMPTS" != "(nil)" ] && [ "$IP_ATTEMPTS" -gt 0 ]; then
     echo "✅ PASS: IP-based rate limiting is active"
