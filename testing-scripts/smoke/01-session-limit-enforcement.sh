@@ -19,7 +19,7 @@ for i in {1..5}; do
 done
 
 # Register user
-USER="test$(date +%s)"
+USER="time_$RANDOM"
 echo ""
 echo "Registering user: $USER"
 REGISTER=$(curl -s -X POST "$GATEWAY_URL/auth/register" \
