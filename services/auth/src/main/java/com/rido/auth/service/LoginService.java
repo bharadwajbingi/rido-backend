@@ -22,7 +22,7 @@ public class LoginService {
      * Used to perform fake password verification when user doesn't exist.
      * This ensures constant-time response regardless of whether the user exists.
      */
-    private static final String DUMMY_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=4$dHlwZXNpeC5jb20tc2VjdXJl$qwerty123456789012345678901234567890123456789012";
+    private static final String DUMMY_PASSWORD_HASH = "$argon2id$v=19$m=4096,t=3,p=1$kRp/g995IaBi1gf17tcLFQ$1wfk5V0lsRbZBcYuHZnZjw6/Vna/QKOsiRyxjvmvku4";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
