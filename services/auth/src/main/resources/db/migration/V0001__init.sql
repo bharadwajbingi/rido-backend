@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 2NRCPGefIeqYSUgmEYVD7taOBY1xNDdafIy7pyyPgj0bmbESbxVXGOqmw6OgmSa
+-- Removed pg_dump \restrict meta-command
 
 -- Dumped from database version 15.15 (Debian 15.15-1.pgdg13+1)
 -- Dumped by pg_dump version 15.15 (Debian 15.15-1.pgdg13+1)
@@ -330,5 +330,4 @@ CREATE INDEX idx_user_profiles_phone ON public.user_profiles USING btree (phone)
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 2NRCPGefIeqYSUgmEYVD7taOBY1xNDdafIy7pyyPgj0bmbESbxVXGOqmw6OgmSa
-
+-- Removed pg_dump \unrestrict meta-command

@@ -126,6 +126,11 @@ services:
       ADMIN_SERVER_PORT: 9091
 
       # ===========================
+      # 🧪 STANDALONE MODE (Dev/Test)
+      # ===========================
+      AUTH_STANDALONE_MODE: "true"
+
+      # ===========================
       # 🔥 OPEN TELEMETRY AGENT
       # ===========================
       # JAVA_TOOL_OPTIONS: "-javaagent:/otel/opentelemetry-javaagent.jar"
@@ -141,13 +146,13 @@ services:
       FIRST_ADMIN_PASSWORD: SuperSecretAdmin123
       
       # ===========================
-      # 🔒 mTLS SERVER CONFIG (User Port Only)
+      # 🔒 mTLS SERVER CONFIG - DISABLED FOR STANDALONE
       # ===========================
-      SERVER_SSL_ENABLED: "true"
-      SERVER_SSL_CLIENT_AUTH: "need"
-      SERVER_SSL_CERTIFICATE: "/etc/certs/auth/auth.crt"
-      SERVER_SSL_CERTIFICATE_PRIVATE_KEY: "/etc/certs/auth/auth.key"
-      SERVER_SSL_TRUST_CERTIFICATE: "/etc/certs/ca/ca.crt"
+      SERVER_SSL_ENABLED: "false"
+      # SERVER_SSL_CLIENT_AUTH: "need"
+      # SERVER_SSL_CERTIFICATE: "/etc/certs/auth/auth.crt"
+      # SERVER_SSL_CERTIFICATE_PRIVATE_KEY: "/etc/certs/auth/auth.key"
+      # SERVER_SSL_TRUST_CERTIFICATE: "/etc/certs/ca/ca.crt"
 
     volumes:
       - ./otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar

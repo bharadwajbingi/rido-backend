@@ -1,24 +1,29 @@
 #!/bin/bash
-# Smoke Test: Basic Authentication Flow
-# Quick validation of core auth functionality
+# Smoke Test: Basic Authentication Flow (Standalone Mode)
+# Quick validation of core auth functionality - Direct Auth access on port 8081
 
 set -e
 
-GATEWAY_URL="http://localhost:8080"
+# Direct Auth service port (standalone mode - no Gateway)
+AUTH_URL="http://localhost:8081"
 
 echo "=========================================="
-echo "Basic Auth Flow Smoke Test"
+echo "Basic Auth Flow Smoke Test (Standalone)"
 echo "=========================================="
 echo ""
 
-# Wait for gateway
-echo "Checking if gateway is ready..."
-for i in {1..5}; do
-    if curl -s "$GATEWAY_URL/auth/keys/jwks.json" | grep -q "keys"; then
-        echo "✅ Gateway is UP"
+# Wait for Auth service readiness
+echo "Checking if Auth service is ready..."
+for i in {1..15}; do
+    if curl -s "$AUTH_URL/actuator/health" 2>/dev/null | grep -q '"status":"UP"'; then
+        echo "✅ Auth service is UP (port 8081)"
         break
     fi
-    echo "  Waiting... ($i/5)"
+    if [ $i -eq 15 ]; then
+        echo "❌ Auth service not ready after 30 seconds"
+        exit 1
+    fi
+    echo "  Waiting for readiness... ($i/15)"
     sleep 2
 done
 echo ""
@@ -34,7 +39,7 @@ echo "Test 1: User Registration"
 MAX_RETRIES=3
 RETRY_COUNT=0
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    REGISTER=$(curl -s -w "\n%{http_code}" -X POST "$GATEWAY_URL/auth/register" \
+    REGISTER=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/register" \
       -H "Content-Type: application/json" \
       -d "{\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\"}")
     
@@ -64,9 +69,11 @@ echo ""
 
 # Test 2: Login
 echo "Test 2: Login with Valid Credentials"
-LOGIN=$(curl -s -X POST "$GATEWAY_URL/auth/login" \
+LOGIN=$(curl -s -X POST "$AUTH_URL/auth/login" \
   -H "Content-Type: application/json" \
-  -d "{\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\", \"deviceId\": \"test-device\"}")
+  -H "User-Agent: SmokeTest/1.0" \
+  -H "X-Device-Id: test-device" \
+  -d "{\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\"}")
 
 if ! echo "$LOGIN" | grep -q "accessToken"; then
     echo "❌ Login failed: $LOGIN"
@@ -83,9 +90,11 @@ echo ""
 
 # Test 3: Token Refresh
 echo "Test 3: Token Refresh"
-REFRESH=$(curl -s -X POST "$GATEWAY_URL/auth/refresh" \
+REFRESH=$(curl -s -X POST "$AUTH_URL/auth/refresh" \
   -H "Content-Type: application/json" \
-  -d "{\"refreshToken\": \"$REFRESH_TOKEN\", \"deviceId\": \"test-device\"}")
+  -H "User-Agent: SmokeTest/1.0" \
+  -H "X-Device-Id: test-device" \
+  -d "{\"refreshToken\": \"$REFRESH_TOKEN\"}")
 
 if ! echo "$REFRESH" | grep -q "accessToken"; then
     echo "❌ Token refresh failed: $REFRESH"
@@ -93,16 +102,17 @@ if ! echo "$REFRESH" | grep -q "accessToken"; then
 fi
 
 NEW_ACCESS_TOKEN=$(echo "$REFRESH" | grep -o '"accessToken":"[^"]*' | cut -d'"' -f4)
+NEW_REFRESH_TOKEN=$(echo "$REFRESH" | grep -o '"refreshToken":"[^"]*' | cut -d'"' -f4)
 echo "✅ PASS: Token refreshed successfully"
 echo "   New access token: ${NEW_ACCESS_TOKEN:0:20}..."
 echo ""
 
 # Test 4: Logout
 echo "Test 4: Logout"
-LOGOUT=$(curl -s -w "\n%{http_code}" -X POST "$GATEWAY_URL/auth/logout" \
+LOGOUT=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/logout" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $NEW_ACCESS_TOKEN" \
-  -d "{\"refreshToken\": \"$(echo "$REFRESH" | grep -o '"refreshToken":"[^"]*' | cut -d'"' -f4)\"}")
+  -d "{\"refreshToken\": \"$NEW_REFRESH_TOKEN\"}")
 
 STATUS=$(echo "$LOGOUT" | tail -1)
 if [ "$STATUS" != "200" ] && [ "$STATUS" != "204" ]; then

@@ -1,25 +1,30 @@
 #!/bin/bash
-# Smoke Test: Session Cleanup Batching
+# Smoke Test: Session Cleanup Batching (Standalone Mode)
 # Verifies that session cleanup deletes in batches to prevent table locks
 
 set -e
 
-AUTH_URL="http://localhost:9091"  # Internal port
-GATEWAY_URL="http://localhost:8080"
+# Direct Auth service ports (standalone mode - no Gateway)
+AUTH_URL="http://localhost:8081"
+ADMIN_URL="http://localhost:9091"
 
 echo "=========================================="
-echo "Session Cleanup Batching Test"
+echo "Session Cleanup Batching Test (Standalone)"
 echo "=========================================="
 echo ""
 
-# Wait for auth service
-echo "Checking if auth service is ready..."
-for i in {1..5}; do
-    if curl -s "$AUTH_URL/auth/keys/jwks.json" | grep -q "keys"; then
-        echo "✅ Auth service is UP (internal port 9091)"
+# Wait for Auth service readiness
+echo "Checking if Auth service is ready..."
+for i in {1..15}; do
+    if curl -s "$AUTH_URL/actuator/health" 2>/dev/null | grep -q '"status":"UP"'; then
+        echo "✅ Auth service is UP (port 8081)"
         break
     fi
-    echo "  Waiting... ($i/5)"
+    if [ $i -eq 15 ]; then
+        echo "❌ Auth service not ready after 30 seconds"
+        exit 1
+    fi
+    echo "  Waiting for readiness... ($i/15)"
     sleep 2
 done
 echo ""
@@ -30,7 +35,7 @@ echo "  (Checking application logs for batch-size configuration)"
 
 # Check if the cleanup service is configured (via actuator health or logs)
 HEALTH=$(curl -s "$AUTH_URL/actuator/health")
-if echo "$HEALTH" | grep -q "UP"; then
+if echo "$HEALTH" | grep -q '"status":"UP"'; then
     echo "✅ PASS: Auth service health check passed"
     echo "  Cleanup service should be configured with batch-size"
 else
@@ -39,7 +44,7 @@ else
 fi
 echo ""
 
-# Test 2: Create test users and expired sessions
+# Test 2: Create test users and sessions
 echo "Test 2: Creating test data for cleanup validation..."
 USERNAME1="cleanup_test_$(date +%s)_1"
 USERNAME2="cleanup_test_$(date +%s)_2"  
@@ -48,7 +53,7 @@ PASSWORD="TestCleanup123!"
 # Register and login to create sessions
 for username in "$USERNAME1" "$USERNAME2"; do
     # Register
-    REGISTER=$(curl -s -w "\n%{http_code}" -X POST "$GATEWAY_URL/auth/register" \
+    REGISTER=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/register" \
       -H "Content-Type: application/json" \
       -d "{\"username\": \"$username\", \"password\": \"$PASSWORD\"}")
     
@@ -68,9 +73,10 @@ for username in "$USERNAME1" "$USERNAME2"; do
     fi
     
     # Login to create a session
-    LOGIN=$(curl -s -X POST "$GATEWAY_URL/auth/login" \
+    LOGIN=$(curl -s -X POST "$AUTH_URL/auth/login" \
       -H "Content-Type: application/json" \
-      -d "{\"username\": \"$username\", \"password\": \"$PASSWORD\", \"deviceId\": \"cleanup-test\"}")
+      -H "User-Agent: CleanupTest/1.0" \
+      -d "{\"username\": \"$username\", \"password\": \"$PASSWORD\"}")
     
     if echo "$LOGIN" | grep -q "accessToken"; then
         echo "  ✅ Session created for $username"
@@ -82,7 +88,7 @@ echo ""
 echo "Test 3: Verifying cleanup service is scheduled..."
 # The cleanup runs every 6 hours via @Scheduled annotation
 # We can verify the service is loaded via actuator beans
-BEANS=$(curl -s "$AUTH_URL/actuator/beans" 2>/dev/null || echo "")
+BEANS=$(curl -s "$ADMIN_URL/actuator/beans" 2>/dev/null || echo "")
 
 if [ -n "$BEANS" ]; then
     if echo "$BEANS" | grep -q "sessionCleanupService\|SessionCleanupService"; then
