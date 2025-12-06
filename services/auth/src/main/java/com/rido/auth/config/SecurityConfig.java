@@ -4,6 +4,9 @@ import com.rido.auth.security.AdminAuthenticationFilter;
 import com.rido.auth.security.JwtUserAuthenticationFilter;
 import com.rido.auth.security.ServiceAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -17,17 +20,31 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 /**
  * Security configuration with dual filter chains:
- * 1. Admin Filter Chain (port 9090) - No mTLS, admin JWT auth
- * 2. User Filter Chain (port 8081/8443) - mTLS + user JWT auth
+ * 1. Admin Filter Chain (port 9091) - No mTLS, admin JWT auth
+ * 2. User Filter Chain (port 8081/8443) - mTLS + user JWT auth (when standalone mode disabled)
+ * 
+ * STANDALONE MODE:
+ * When auth.standalone.enabled=true, mTLS filter is disabled for direct access testing.
+ * This prevents accidental production deployments with test configuration.
  */
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
+
     private final JwtUserAuthenticationFilter jwtFilter;
     private final ServiceAuthenticationFilter mtlsFilter;
     private final AdminAuthenticationFilter adminFilter;
     private final com.rido.auth.security.InputSanitizationFilter sanitizationFilter;
+    
+    /**
+     * Standalone mode flag: when true, mTLS and gateway header requirements are disabled.
+     * This is for local development/testing without the Gateway.
+     * NEVER enable in production!
+     */
+    @Value("${auth.standalone.enabled:false}")
+    private boolean standaloneMode;
 
     public SecurityConfig(
             JwtUserAuthenticationFilter jwtFilter,
@@ -42,7 +59,7 @@ public class SecurityConfig {
     }
 
     // =========================================================================
-    // ADMIN FILTER CHAIN (Port 9090) - Higher priority
+    // ADMIN FILTER CHAIN (Port 9091) - Higher priority
     // - No mTLS required
     // - Admin JWT authentication on protected endpoints
     // - No rate limits, no lockouts
@@ -87,7 +104,7 @@ public class SecurityConfig {
 
     // =========================================================================
     // USER FILTER CHAIN (Port 8081/8443) - Lower priority, default
-    // - mTLS required (gateway → auth)
+    // - mTLS required (gateway → auth) when NOT in standalone mode
     // - User JWT authentication
     // - Rate limits and brute-force protection applied
     // =========================================================================
@@ -133,10 +150,22 @@ public class SecurityConfig {
         http.addFilterBefore(sanitizationFilter, UsernamePasswordAuthenticationFilter.class);
 
         // Filter order:
-        // 1. mTLS filter validates Gateway/Auth service identity
-        http.addFilterBefore(mtlsFilter, UsernamePasswordAuthenticationFilter.class);
+        // 1. mTLS filter validates Gateway/Auth service identity (SKIP in standalone mode)
+        if (!standaloneMode) {
+            http.addFilterBefore(mtlsFilter, UsernamePasswordAuthenticationFilter.class);
+            log.info("mTLS filter ENABLED - Gateway authentication required");
+        } else {
+            log.warn("⚠️ STANDALONE MODE: mTLS filter DISABLED - Direct access allowed");
+        }
+        
         // 2. JWT user authentication filter extracts userId, roles, jti
-        http.addFilterAfter(jwtFilter, ServiceAuthenticationFilter.class);
+        if (standaloneMode) {
+            // In standalone mode, add JWT filter after sanitization filter
+            http.addFilterAfter(jwtFilter, com.rido.auth.security.InputSanitizationFilter.class);
+        } else {
+            // In normal mode, add JWT filter after mTLS filter
+            http.addFilterAfter(jwtFilter, ServiceAuthenticationFilter.class);
+        }
 
         return http.build();
     }

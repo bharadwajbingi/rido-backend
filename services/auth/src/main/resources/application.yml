@@ -72,6 +72,9 @@ resilience4j:
         eventConsumerBufferSize: 10
 
 auth:
+  # Standalone mode: disables mTLS and gateway header expectations
+  standalone:
+    enabled: ${AUTH_STANDALONE_MODE:false}
   login:
     max-failed-attempts: 5
     lockout-duration-seconds: 300
@@ -92,9 +95,17 @@ management:
   endpoint:
     health:
       show-details: always
+      # Enable Kubernetes probes (readiness/liveness)
+      probes:
+        enabled: true
     prometheus:
       enabled: true
     metrics:
+      enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
       enabled: true
 
   metrics:
