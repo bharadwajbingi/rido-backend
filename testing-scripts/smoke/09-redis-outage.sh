@@ -1,25 +1,29 @@
 #!/bin/bash
-# Smoke Test: Redis Outage resilience
+# Smoke Test: Redis Outage Resilience (Standalone Mode)
 # Verifies that auth service degrades gracefully when Redis is down
 
 set -e
 
-GATEWAY_URL="http://localhost:8080"
-AUTH_URL="http://localhost:9091"
+# Direct Auth service port (standalone mode - no Gateway)
+AUTH_URL="http://localhost:8081"
 
 echo "=========================================="
-echo "Redis Outage Resilience Test"
+echo "Redis Outage Resilience Test (Standalone)"
 echo "=========================================="
 echo ""
 
-# Wait for services
-echo "Checking if services are ready..."
-for i in {1..5}; do
-    if curl -s "$GATEWAY_URL/auth/keys/jwks.json" | grep -q "keys"; then
-        echo "✅ Gateway is UP"
+# Wait for Auth service readiness
+echo "Checking if Auth service is ready..."
+for i in {1..15}; do
+    if curl -s "$AUTH_URL/actuator/health" 2>/dev/null | grep -q '"status":"UP"'; then
+        echo "✅ Auth service is UP (port 8081)"
         break
     fi
-    echo "  Waiting... ($i/5)"
+    if [ $i -eq 15 ]; then
+        echo "❌ Auth service not ready after 30 seconds"
+        exit 1
+    fi
+    echo "  Waiting for readiness... ($i/15)"
     sleep 2
 done
 echo ""
@@ -29,13 +33,14 @@ echo "Test 1: Verify login works with Redis UP..."
 TEST_USER="redis_test_$(date +%s)"
 
 # Register user
-curl -s -X POST "$GATEWAY_URL/auth/register" \
+curl -s -X POST "$AUTH_URL/auth/register" \
   -H "Content-Type: application/json" \
   -d "{\"username\": \"$TEST_USER\", \"password\": \"Test123Pass!\"}" > /dev/null
 
 # Login
-LOGIN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$GATEWAY_URL/auth/login" \
+LOGIN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
   -H "Content-Type: application/json" \
+  -H "User-Agent: RedisTest/1.0" \
   -d "{\"username\": \"$TEST_USER\", \"password\": \"Test123Pass!\"}")
 
 LOGIN_CODE=$(echo "$LOGIN_RESPONSE" | tail -1)
@@ -56,8 +61,9 @@ sleep 5 # Wait for circuit breaker to detect
 echo "Test 2: Verify login works with Redis DOWN (Fallback)..."
 
 # Login Attempt (Should rely on DB fallback)
-RESCUE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$GATEWAY_URL/auth/login" \
+RESCUE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
   -H "Content-Type: application/json" \
+  -H "User-Agent: RedisTest/1.0" \
   -d "{\"username\": \"$TEST_USER\", \"password\": \"Test123Pass!\"}")
 
 RESCUE_CODE=$(echo "$RESCUE_RESPONSE" | tail -1)
@@ -77,8 +83,9 @@ docker exec postgres psql -U rh_user -d ride_hailing -c \
   "UPDATE users SET locked_until = NOW() + INTERVAL '30 minutes' WHERE username = '$TEST_USER';" > /dev/null 2>&1
 
 # Try login (Should be locked)
-LOCK_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$GATEWAY_URL/auth/login" \
+LOCK_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
   -H "Content-Type: application/json" \
+  -H "User-Agent: RedisTest/1.0" \
   -d "{\"username\": \"$TEST_USER\", \"password\": \"Test123Pass!\"}")
 
 LOCK_CODE=$(echo "$LOCK_RESPONSE" | tail -1)
@@ -101,8 +108,9 @@ docker exec postgres psql -U rh_user -d ride_hailing -c \
   "UPDATE users SET locked_until = NULL WHERE username = '$TEST_USER';" > /dev/null 2>&1
 
 # Login
-RECOVER_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$GATEWAY_URL/auth/login" \
+RECOVER_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
   -H "Content-Type: application/json" \
+  -H "User-Agent: RedisTest/1.0" \
   -d "{\"username\": \"$TEST_USER\", \"password\": \"Test123Pass!\"}")
 
 RECOVER_CODE=$(echo "$RECOVER_RESPONSE" | tail -1)

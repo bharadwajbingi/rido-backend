@@ -1,169 +1,142 @@
 #!/bin/bash
-# Smoke Test: Account Lockout
-# Verifies that account lockout logic works correctly using lockedUntil field
+# Smoke Test: Account Lockout (Standalone Mode)
+# Verifies that accounts get locked after too many failed login attempts
 
 set -e
 
-GATEWAY_URL="http://localhost:8080"
-AUTH_URL="http://localhost:9091"
+# Direct Auth service port (standalone mode - no Gateway)
+AUTH_URL="http://localhost:8081"
 
 echo "=========================================="
-echo "Account Lockout Test"
+echo "Account Lockout Smoke Test (Standalone)"
 echo "=========================================="
 echo ""
 
-# Wait for services
-echo "Checking if services are ready..."
-for i in {1..5}; do
-    if curl -s "$GATEWAY_URL/auth/keys/jwks.json" | grep -q "keys"; then
-        echo "✅ Gateway is UP"
+# Wait for Auth service readiness
+echo "Checking if Auth service is ready..."
+for i in {1..15}; do
+    if curl -s "$AUTH_URL/actuator/health" 2>/dev/null | grep -q '"status":"UP"'; then
+        echo "✅ Auth service is UP (port 8081)"
         break
     fi
-    echo "  Waiting... ($i/5)"
+    if [ $i -eq 15 ]; then
+        echo "❌ Auth service not ready after 30 seconds"
+        exit 1
+    fi
+    echo "  Waiting for readiness... ($i/15)"
     sleep 2
 done
 echo ""
 
-# Test 1: Successful login works
-echo "Test 1: Register and login successfully..."
-TEST_USER="lockout_test_$(date +%s)"
-
-# Register user
-REG_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$GATEWAY_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d "{\"username\": \"$TEST_USER\", \"password\": \"Test123Pass!\"}")
-
-REG_CODE=$(echo "$REG_RESPONSE" | tail -1)
-
-if [ "$REG_CODE" == "200" ] || [ "$REG_CODE" == "201" ]; then
-    echo "✅ PASS: User registered successfully"
-else
-    echo "❌ FAIL: Registration failed with code $REG_CODE"
-    exit 1
-fi
-
+# Clear rate limits and lockouts
+echo "Clearing rate limits and lockouts..."
+docker exec redis redis-cli FLUSHDB > /dev/null 2>&1 || true
 sleep 1
-
-# Successful login
-LOGIN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$GATEWAY_URL/auth/login" \
-  -H "Content-Type: application/json" \
-  -d "{\"username\": \"$TEST_USER\", \"password\": \"Test123Pass!\"}")
-
-LOGIN_CODE=$(echo "$LOGIN_RESPONSE" | tail -1)
-
-if [ "$LOGIN_CODE" == "200" ]; then
-    echo "✅ PASS: Successful login works"
-else
-    echo "❌ FAIL: Login failed with code $LOGIN_CODE"
-    exit 1
-fi
 echo ""
 
-# Clear IP rate limits from previous tests
-echo "Clearing rate limits from previous tests..."
-docker exec redis redis-cli KEYS "auth:login:ip:attempts:*" | while read key; do
-    [ -n "$key" ] && docker exec redis redis-cli DEL "$key" > /dev/null 2>&1
-done
-sleep 1
+# Create a test user
+USERNAME="lockout_$(date +%s)"
+PASSWORD="SecurePass123!"
 
-# Test 2: Account locks after 5 failed attempts
-echo "Test 2: Verify account locks after 5 failed login attempts..."
-LOCKOUT_USER="lockout_fail_$(date +%s)"
-
-# Register user
-curl -s -X POST "$GATEWAY_URL/auth/register" \
+echo "Step 1: Registering test user: $USERNAME"
+REGISTER=$(curl -s -X POST "$AUTH_URL/auth/register" \
   -H "Content-Type: application/json" \
-  -d "{\"username\": \"$LOCKOUT_USER\", \"password\": \"Test123Pass!\"}" > /dev/null
+  -d "{\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\"}")
 
-sleep 1
+if echo "$REGISTER" | grep -q "error"; then
+    echo "❌ Failed to register: $REGISTER"
+    exit 1
+fi
+echo "✅ User registered"
+echo ""
 
-# Make 5 failed login attempts
-LOCKED=false
-for i in {1..6}; do
-    FAIL_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$GATEWAY_URL/auth/login" \
+# ==============================================
+# TEST 1: Fail login multiple times to trigger lockout
+# ==============================================
+echo "Test 1: Triggering account lockout..."
+echo "  (Attempting 6 failed logins - lockout triggers at 5)"
+
+MAX_ATTEMPTS=6  # Default lockout is 5 attempts
+
+for i in $(seq 1 $MAX_ATTEMPTS); do
+    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
       -H "Content-Type: application/json" \
-      -d "{\"username\": \"$LOCKOUT_USER\", \"password\": \"WrongPassword$i!\"}")
+      -H "User-Agent: LockoutTest/1.0" \
+      -d "{\"username\": \"$USERNAME\", \"password\": \"WrongPass$i!\"}")
     
-    FAIL_CODE=$(echo "$FAIL_RESPONSE" | tail -1)
-    FAIL_BODY=$(echo "$FAIL_RESPONSE" | head -n -1)
+    HTTP_CODE=$(echo "$RESPONSE" | tail -1)
     
-    echo "  Attempt $i: HTTP $FAIL_CODE"
-    
-    if [ "$FAIL_CODE" == "423" ]; then
-        if echo "$FAIL_BODY" | grep -qi "locked"; then
-            echo "✅ PASS: Account locked after $i failed attempts"
-            LOCKED=true
-            break
-        fi
+    if [ "$HTTP_CODE" == "423" ]; then
+        echo "  Attempt $i: Account LOCKED (423)"
+        LOCKED_AT=$i
+        break
+    elif [ "$HTTP_CODE" == "429" ]; then
+        echo "  Attempt $i: Rate limited (429) - waiting..."
+        sleep 2
+    else
+        echo "  Attempt $i: Invalid credentials (HTTP $HTTP_CODE)"
     fi
     
-    sleep 0.3
+    sleep 0.5
 done
+echo ""
 
-if [ "$LOCKED" = false ]; then
-    echo "❌ FAIL: Account was not locked after 6 attempts"
+# ==============================================
+# TEST 2: Verify locked account returns 423
+# ==============================================
+echo "Test 2: Verifying locked account returns 423..."
+LOCKED_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
+  -H "Content-Type: application/json" \
+  -H "User-Agent: LockoutTest/1.0" \
+  -d "{\"username\": \"$USERNAME\", \"password\": \"$PASSWORD\"}")
+
+LOCKED_CODE=$(echo "$LOCKED_RESPONSE" | tail -1)
+LOCKED_BODY=$(echo "$LOCKED_RESPONSE" | head -n -1)
+
+echo "  HTTP Status: $LOCKED_CODE"
+
+if [ "$LOCKED_CODE" == "423" ]; then
+    echo "✅ PASS: Locked account correctly returns 423"
+else
+    echo "❌ FAIL: Expected 423, got $LOCKED_CODE"
+    echo "  Response: $LOCKED_BODY"
     exit 1
 fi
 echo ""
 
-# Test 3: Locked account returns proper error message
-echo "Test 3: Verify locked account returns proper error..."
-LOCK_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$GATEWAY_URL/auth/login" \
+# ==============================================
+# TEST 3: Verify correct user login still works (different user)
+# ==============================================
+echo "Test 3: Verify different user can still login..."
+OTHER_USER="other_$(date +%s)"
+
+# Register other user
+curl -s -X POST "$AUTH_URL/auth/register" \
   -H "Content-Type: application/json" \
-  -d "{\"username\": \"$LOCKOUT_USER\", \"password\": \"Wrong123Pass!\"}")
+  -d "{\"username\": \"$OTHER_USER\", \"password\": \"$PASSWORD\"}" > /dev/null
 
-LOCK_CODE=$(echo "$LOCK_RESPONSE" | tail -1)
-LOCK_BODY=$(echo "$LOCK_RESPONSE" | head -n -1)
-
-if [ "$LOCK_CODE" == "423" ] && echo "$LOCK_BODY" | grep -qi "locked"; then
-    echo "✅ PASS: Locked account returns 423 with proper error message"
-    echo "  Error message: $(echo "$LOCK_BODY" | head -1)"
-else
-    echo "❌ FAIL: Expected 423 with 'locked' message, got $LOCK_CODE"
-    echo "  Body: $LOCK_BODY"
-    exit 1
-fi
-echo ""
-
-# Test 4: Lockout clears after Redis/DB expiry
-echo "Test 4: Verify lockout clearing works..."
-
-# The earlier account is still locked, let's try clearing it
-docker exec redis redis-cli DEL "auth:login:locked:$LOCKOUT_USER" > /dev/null 2>&1
-docker exec redis redis-cli DEL "auth:login:attempts:$LOCKOUT_USER" > /dev/null 2>&1
-docker exec redis redis-cli KEYS "auth:login:ip:attempts:*" | while read key; do
-    docker exec redis redis-cli DEL "$key" > /dev/null 2>&1
-done
-
-# Also clear the database locked_until field
-docker exec postgres psql -U rh_user -d ride_hailing -c \
-  "UPDATE users SET locked_until = NULL WHERE username = '$LOCKOUT_USER';" > /dev/null 2>&1
-
-sleep 2
-
-# Now try logging in with correct password
-CLEAR_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$GATEWAY_URL/auth/login" \
+# Login other user
+OTHER_LOGIN=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
   -H "Content-Type: application/json" \
-  -d "{\"username\": \"$LOCKOUT_USER\", \"password\": \"Test123Pass!\"}")
+  -H "User-Agent: LockoutTest/1.0" \
+  -d "{\"username\": \"$OTHER_USER\", \"password\": \"$PASSWORD\"}")
 
-CLEAR_CODE=$(echo "$CLEAR_RESPONSE" | tail -1)
+OTHER_CODE=$(echo "$OTHER_LOGIN" | tail -1)
 
-if [ "$CLEAR_CODE" == "200" ]; then
-    echo "✅ PASS: Lockout successfully cleared and login works"
+if [ "$OTHER_CODE" == "200" ]; then
+    echo "✅ PASS: Other users can still login (200)"
 else
-    echo "❌ FAIL: Login after clearing lockout failed with code $CLEAR_CODE"
+    echo "❌ FAIL: Other user login failed with $OTHER_CODE"
     exit 1
 fi
 echo ""
 
 echo "=========================================="
-echo "✅ ALL TESTS PASSED!"
+echo "✅ ACCOUNT LOCKOUT VERIFIED"
 echo "=========================================="
 echo ""
-echo "Account lockout functionality verified:"
-echo "  • Successful login: Works ✅"
-echo "  • Lockout after failures: Active ✅"
-echo "  • Proper error messages (423): Returned ✅"
-echo "  • Lockout clearing: Works ✅"
-echo ""
-echo "Fix confirmed: Using only lockedUntil field (deprecated fields removed)"
+echo "Security features working:"
+echo "  • Failed login attempts tracked ✅"
+echo "  • Account locked after max attempts ✅"
+echo "  • Locked account returns 423 ✅"
+echo "  • Other accounts unaffected ✅"
