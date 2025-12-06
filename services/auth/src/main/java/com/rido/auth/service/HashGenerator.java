@@ -1,4 +1,6 @@
 
+package com.rido.auth.service;
+
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 
 public class HashGenerator {
