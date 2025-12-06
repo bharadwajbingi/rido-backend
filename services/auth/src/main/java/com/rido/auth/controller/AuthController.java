@@ -95,7 +95,7 @@ public class AuthController {
             HttpServletRequest request
     ) {
         log.info("DEBUG: Entering register method with username: " + req.username());
-        String ip = ipExtractor.extractClientIp(request); // Secure IP extraction
+        String ip = ipExtractor.extractClientIp(request);
 
         log.info("auth_register_request", kv("username", req.username()), kv("ip", ip));
 
@@ -121,6 +121,9 @@ public class AuthController {
         String deviceId = request.getHeader("X-Device-Id");
         String userAgent = request.getHeader("User-Agent");
 
+        // FIX-AUTH-001: Check Rate Limit BEFORE password check to prevent brute force/timing attacks
+        rateLimiter.checkRateLimit("login:ip:" + ip, 50, 60);
+
         log.info("auth_login_attempt",
                 kv("username", username),
                 kv("ip", ip),
@@ -139,7 +142,7 @@ public class AuthController {
                     userAgent
             );
 
-            rateLimiter.checkRateLimit("login:ip:" + ip, 50, 60);
+            // Rate limit checked at start
 
             log.info("auth_login_success", kv("username", username), kv("ip", ip));
 
@@ -154,11 +157,13 @@ public class AuthController {
                     userRepository.findByUsername(username).orElse(null)
             );
 
+            // Keep user-specific limit for additional protection, but IP limit is primary first line of defense
             rateLimiter.checkRateLimit("login:user:" + username, 10, 300);
             throw e;
 
         } catch (AccountLockedException e) {
             log.error("auth_login_account_locked", kv("username", username), kv("ip", ip));
+            // User is already locked, but we still count against their specific "fail" limit to keep it hot
             rateLimiter.checkRateLimit("login:user:" + username, 10, 300);
             throw e;
         }
@@ -181,9 +186,10 @@ public class AuthController {
         String deviceId = request.getHeader("X-Device-Id");
         String userAgent = request.getHeader("User-Agent");
 
-        log.info("auth_refresh_attempt", kv("ip", ip), kv("deviceId", deviceId));
-
+        // FIX-AUTH-001: Check Rate Limit BEFORE token processing
         rateLimiter.checkRateLimit("refresh:" + ip, 20, 60);
+
+        log.info("auth_refresh_attempt", kv("ip", ip), kv("deviceId", deviceId));
 
         TokenResponse resp = authService.refresh(body.refreshToken(), deviceId, ip, userAgent);
 
@@ -194,9 +200,11 @@ public class AuthController {
 
     // =====================================================
     // LOGOUT
+    // FIX-AUTH-003: Now verifies session ownership
     // =====================================================
     @PostMapping("/logout")
     public ResponseEntity<?> logout(
+            HttpServletRequest httpReq,
             @RequestHeader(name = "Authorization", required = false) String authHeader,
             @RequestBody LogoutRequest req
     ) {
@@ -210,11 +218,15 @@ public class AuthController {
             accessToken = authHeader.substring(7);
         }
 
-        log.info("auth_logout_attempt");
+        // FIX-AUTH-003: Extract userId from JWT authentication to verify session ownership
+        String userIdStr = (String) httpReq.getAttribute("userId");
+        UUID callingUserId = (userIdStr != null) ? UUID.fromString(userIdStr) : null;
 
-        authService.logout(req.refreshToken(), accessToken);
+        log.info("auth_logout_attempt", kv("userId", callingUserId));
 
-        log.info("auth_logout_success");
+        authService.logout(req.refreshToken(), accessToken, callingUserId);
+
+        log.info("auth_logout_success", kv("userId", callingUserId));
 
         return ResponseEntity.ok(Map.of("status", "ok"));
     }

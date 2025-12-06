@@ -50,6 +50,7 @@ run_test "$SCRIPT_DIR/07-input-validation.sh"
 run_test "$SCRIPT_DIR/08-account-lockout.sh"
 run_test "$SCRIPT_DIR/09-redis-outage.sh"
 run_test "$SCRIPT_DIR/10-schema-migration.sh"
+run_test "$SCRIPT_DIR/extended-auth-tests.sh"
 
 # Summary
 echo "=========================================="

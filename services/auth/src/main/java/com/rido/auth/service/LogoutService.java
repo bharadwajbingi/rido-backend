@@ -11,6 +11,8 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class LogoutService {
 
@@ -42,7 +44,17 @@ public class LogoutService {
         this.requestTimer = registry.timer("auth.request.duration");
     }
 
-    public void logout(String refreshToken, String accessToken) {
+    /**
+     * Logout user by revoking their refresh token.
+     * 
+     * FIX-AUTH-003: Added callingUserId parameter to verify session ownership.
+     * Users can only logout their own sessions, not other users' sessions.
+     * 
+     * @param refreshToken The refresh token to revoke
+     * @param accessToken The access token to blacklist
+     * @param callingUserId The ID of the user making the request (from JWT)
+     */
+    public void logout(String refreshToken, String accessToken, UUID callingUserId) {
 
         if (refreshToken == null)
             throw new InvalidCredentialsException("Missing refresh token");
@@ -56,6 +68,11 @@ public class LogoutService {
 
         RefreshTokenEntity rt = refreshTokenRepository.findByTokenHash(hash)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid refresh token"));
+
+        // FIX-AUTH-003: Verify session ownership - user can only logout their own sessions
+        if (callingUserId != null && !rt.getUserId().equals(callingUserId)) {
+            throw new InvalidCredentialsException("Cannot revoke another user's session");
+        }
 
         if (rt.isRevoked())
             throw new InvalidCredentialsException("Already revoked");

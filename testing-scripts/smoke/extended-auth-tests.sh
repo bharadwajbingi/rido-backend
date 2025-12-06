@@ -6,8 +6,31 @@
 
 set -e
 
-AUTH_URL="http://localhost:8081"
+AUTH_URL="https://localhost:8081"
 ADMIN_URL="http://localhost:9091"
+
+# mTLS Configuration for Production Mode
+CERT_DIR="../../infra/mtls-certs"
+CRT="$CERT_DIR/gateway/gateway.crt"
+KEY="$CERT_DIR/gateway/gateway.key"
+
+if [[ "$AUTH_URL" == https* ]]; then
+    echo "========================================================"
+    echo "🔐 Detected HTTPS Auth URL. Enabling mTLS mode..."
+    echo "   Using Cert: $CRT"
+    echo "========================================================"
+    
+    if [ ! -f "$CRT" ]; then
+        echo "❌ mTLS Certs not found at $CRT"
+        echo "   Please run from testing-scripts/smoke directory"
+        exit 1
+    fi
+    # Overlay curl command with mTLS options
+    curl() {
+        command curl -k --cert "$CRT" --key "$KEY" "$@"
+    }
+    export -f curl
+fi
 
 PASSED=0
 FAILED=0
@@ -457,27 +480,34 @@ echo "==========================================================================
 echo "CATEGORY 8: Rate Limiting"
 echo "============================================================================"
 
-echo "Test 8.1: Rapid login attempts → 429"
+echo "Test 8.1: Rapid login attempts (Target: >50 to hit IP limit)"
 RATE_LIMITED=false
-for i in {1..25}; do
+# Use a distinct public IP (203.0.113.5) to avoid interference from previous tests
+# and ensure we start from 0 count. IpExtractor accepts Public IPs.
+TEST_IP="203.0.113.5"
+
+for i in {1..60}; do
     RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
       -H "Content-Type: application/json" \
       -H "User-Agent: RateLimitTest/1.0" \
+      -H "X-Forwarded-For: $TEST_IP" \
       -d '{"username": "ratelimit_test", "password": "WrongPass!"}')
     
     HTTP_CODE=$(echo "$RESPONSE" | tail -1)
     
     if [ "$HTTP_CODE" == "429" ]; then
         RATE_LIMITED=true
-        echo "    Rate limited at attempt $i"
+        echo "    ✅ Rate limited at attempt $i (Expected)"
         break
     fi
+    # Small sleep to allow processing but still be fast enough
+    sleep 0.2
 done
 
 if [ "$RATE_LIMITED" == "true" ]; then
     pass_test "Rate limiting triggered (429)"
 else
-    skip_test "Rate limit not triggered in 25 attempts"
+    fail_test "Rate limit NOT triggered in 60 attempts (Limit is 50/60s)"
 fi
 echo ""
 
@@ -577,6 +607,43 @@ if [ "$HTTP_CODE" == "401" ]; then
     pass_test "Logout with invalid token rejected (401)"
 else
     fail_test "Expected 401, got $HTTP_CODE"
+fi
+echo ""
+
+echo "Test 10.3: Cross-user session revocation (User B cannot revoke User A)"
+# 1. Register User A and Login
+USER_A="user_a_$(date +%s)"
+curl -s -X POST "$AUTH_URL/auth/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\": \"$USER_A\", \"password\": \"Password123!\"}" > /dev/null
+
+LOGIN_A=$(curl -s -X POST "$AUTH_URL/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\": \"$USER_A\", \"password\": \"Password123!\"}")
+REFRESH_TOKEN_A=$(echo "$LOGIN_A" | grep -o '"refreshToken":"[^"]*' | cut -d'"' -f4)
+
+# 2. Register User B and Login
+USER_B="user_b_$(date +%s)"
+curl -s -X POST "$AUTH_URL/auth/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\": \"$USER_B\", \"password\": \"Password123!\"}" > /dev/null
+
+LOGIN_B=$(curl -s -X POST "$AUTH_URL/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\": \"$USER_B\", \"password\": \"Password123!\"}")
+ACCESS_TOKEN_B=$(echo "$LOGIN_B" | grep -o '"accessToken":"[^"]*' | cut -d'"' -f4)
+
+# 3. User B tries to revoke User A's refresh token
+RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/logout" \
+  -H "Authorization: Bearer $ACCESS_TOKEN_B" \
+  -H "Content-Type: application/json" \
+  -d "{\"refreshToken\": \"$REFRESH_TOKEN_A\"}")
+HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+
+if [ "$HTTP_CODE" == "401" ] || [ "$HTTP_CODE" == "400" ] || [ "$HTTP_CODE" == "403" ]; then
+    pass_test "Cross-user logout rejected (HTTP $HTTP_CODE)"
+else
+    fail_test "User B revoked User A's session! (HTTP $HTTP_CODE)"
 fi
 echo ""
 

@@ -6,8 +6,31 @@
 
 set -e
 
-AUTH_URL="http://localhost:8081"
+AUTH_URL="https://localhost:8081"
 ADMIN_URL="http://localhost:9091"
+
+# mTLS Configuration for Production Mode
+CERT_DIR="../../infra/mtls-certs"
+CRT="$CERT_DIR/gateway/gateway.crt"
+KEY="$CERT_DIR/gateway/gateway.key"
+
+if [[ "$AUTH_URL" == https* ]]; then
+    if [ ! -f "$CRT" ]; then
+        echo "❌ mTLS Certs not found at $CRT"
+        echo "   Please run from testing-scripts/smoke directory"
+        exit 1
+    fi
+     echo "========================================================"
+    echo "🔐 Detected HTTPS Auth URL. Enabling mTLS mode..."
+    echo "   Using Cert: $CRT"
+    echo "========================================================"
+   
+    # Overlay curl command with mTLS options
+    curl() {
+        command curl -k --cert "$CRT" --key "$KEY" "$@"
+    }
+    export -f curl
+fi
 
 echo "=========================================="
 echo "Auth Service Standalone Smoke Tests"
