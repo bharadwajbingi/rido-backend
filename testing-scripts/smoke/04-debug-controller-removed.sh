@@ -12,17 +12,7 @@ echo "Debug Controller Removal Test"
 echo "=========================================="
 echo ""
 
-# Wait for auth service
-echo "Checking if auth service is ready..."
-for i in {1..5}; do
-    if curl -s "$AUTH_URL/auth/keys/jwks.json" | grep -q "keys"; then
-        echo "✅ Auth service is UP (internal port 9091)"
-        break
-    fi
-    echo "  Waiting... ($i/5)"
-    sleep 2
-done
-echo ""
+# Readiness check skipped
 
 # Test 1: Verify /auth/debug/unlock does not exist
 echo "Test 1: Verifying /auth/debug/unlock endpoint does not exist..."

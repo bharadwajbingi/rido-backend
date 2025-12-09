@@ -24,7 +24,7 @@ fi
 # Test 2: Verify Baseline (V1) is present
 echo "Test 2: Checking V1 baseline..."
 V1_CHECK=$(docker exec -e PGPASSWORD=rh_pass postgres psql -U rh_user -d ride_hailing -tAc \
-  "SELECT success FROM flyway_schema_history WHERE version = '1';")
+  "SELECT success FROM flyway_schema_history WHERE version = '0001';")
 
 if [ "$V1_CHECK" == "t" ]; then
     echo "✅ PASS: V1 Migration (Baseline) marked as success"
