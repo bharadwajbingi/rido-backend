@@ -5,7 +5,7 @@
 set -e
 
 # Direct Auth service ports (standalone mode - no Gateway)
-AUTH_URL="${AUTH_URL:-http://localhost:8081}"
+AUTH_URL="${AUTH_URL:-https://localhost:8081}"
 ADMIN_URL="http://localhost:9091"
 
 echo "=========================================="
@@ -29,8 +29,8 @@ echo "Test 1: IP-Based Rate Limiting..."
 echo "  Sending multiple requests to trigger rate limit..."
 
 RATE_LIMITED=false
-for i in {1..20}; do
-    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
+for i in {1..60}; do
+    RESPONSE=$(curl -k -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
       -H "Content-Type: application/json" \
       -H "User-Agent: RateLimitTest/1.0" \
       -d '{"username": "ratelimit_user", "password": "WrongPass123!"}')
@@ -63,7 +63,7 @@ echo "Test 2: X-Forwarded-For Spoofing Prevention..."
 echo "  Testing that spoofed X-Forwarded-For headers don't bypass limits..."
 
 for i in {1..10}; do
-    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
+    RESPONSE=$(curl -k -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
       -H "Content-Type: application/json" \
       -H "User-Agent: RateLimitTest/1.0" \
       -H "X-Forwarded-For: 1.2.3.$i" \
@@ -94,13 +94,13 @@ echo "  Testing that failed login attempts are tracked per username..."
 USERNAME="ratelimit_$(date +%s)"
 
 # First, register the user
-curl -s -X POST "$AUTH_URL/auth/register" \
+curl -k -s -X POST "$AUTH_URL/auth/register" \
   -H "Content-Type: application/json" \
   -d "{\"username\": \"$USERNAME\", \"password\": \"SecurePass123!\"}" > /dev/null
 
 USER_RATE_LIMITED=false
 for i in {1..10}; do
-    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
+    RESPONSE=$(curl -k -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
       -H "Content-Type: application/json" \
       -H "User-Agent: RateLimitTest/1.0" \
       -d "{\"username\": \"$USERNAME\", \"password\": \"WrongPass$i!\"}")
