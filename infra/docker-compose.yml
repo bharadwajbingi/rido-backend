@@ -148,7 +148,7 @@ services:
       # ===========================
       # 🔒 mTLS SERVER CONFIG - DISABLED FOR STANDALONE
       # ===========================
-      SERVER_SSL_ENABLED: "true"
+      SERVER_SSL_ENABLED: "false"
       SERVER_SSL_CLIENT_AUTH: "none"
       SERVER_SSL_CERTIFICATE: "/etc/certs/auth/auth.crt"
       SERVER_SSL_CERTIFICATE_PRIVATE_KEY: "/etc/certs/auth/auth.key"
