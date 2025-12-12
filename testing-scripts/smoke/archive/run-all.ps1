@@ -67,13 +67,32 @@ function Run-Test {
     Write-Host "Running: $TestName"
     Write-Host "----------------------------------------"
     
-    # Run bash script via WSL if available, otherwise skip
     $bashPath = "$ScriptDir\$TestFile"
+    # Convert path to linux style for bash (Git Bash format: /c/Users/...)
+    $drive = $bashPath.Substring(0,1).ToLower()
+    $pathNoDrive = $bashPath.Substring(3).Replace('\', '/')
+    $linuxPath = "/$drive/$pathNoDrive"
     
     try {
-        # Try to run via WSL
-        $wslPath = $bashPath -replace '\\', '/' -replace 'C:', '/mnt/c'
-        $result = wsl bash $wslPath 2>&1
+        # Try running with bash directly (Git Bash or similar)
+        # using run_command we know bash is available
+        $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $processInfo.FileName = "bash"
+        $processInfo.Arguments = """$linuxPath"""
+        $processInfo.RedirectStandardOutput = $true
+        $processInfo.RedirectStandardError = $true
+        $processInfo.UseShellExecute = $false
+        $processInfo.CreateNoWindow = $true
+        
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $processInfo
+        
+        # Capture output in real-time or wait? 
+        # For simplicity in this script, just wait and capture.
+        # But for large tests we want real-time. 
+        # Simpler approach: Invoke-Expression or direct execution
+        
+        bash "$linuxPath"
         $exitCode = $LASTEXITCODE
         
         if ($exitCode -eq 0) {
@@ -83,10 +102,8 @@ function Run-Test {
             Write-Host "❌ FAILED: $TestName" -ForegroundColor Red
             $script:FailedTests++
         }
-        
-        Write-Host $result
     } catch {
-        Write-Host "⚠️ Could not run test (WSL not available): $TestName" -ForegroundColor Yellow
+        Write-Host "⚠️ Could not run test: $_" -ForegroundColor Yellow
         $script:FailedTests++
     }
     
@@ -272,6 +289,7 @@ function Run-StandaloneTests {
 # ==============================================================================
 # RUN ALL TESTS
 # ==============================================================================
+Run-Test "Extended Auth Smoke Tests" "extended-auth-tests.sh"
 Run-StandaloneTests
 
 # ==============================================================================

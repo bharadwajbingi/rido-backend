@@ -5,7 +5,7 @@
 set -e
 
 # Direct Auth service ports (standalone mode - no Gateway)
-AUTH_URL="http://localhost:8081"
+AUTH_URL="${AUTH_URL:-http://localhost:8081}"
 ADMIN_URL="http://localhost:9091"
 MAX_SESSIONS=5  # Default from application.yml
 
@@ -14,21 +14,7 @@ echo "Session Limit Enforcement Test (Standalone)"
 echo "=========================================="
 echo ""
 
-# Wait for Auth service readiness
-echo "Checking if Auth service is ready..."
-for i in {1..15}; do
-    if curl -s "$AUTH_URL/actuator/health" 2>/dev/null | grep -q '"status":"UP"'; then
-        echo "✅ Auth service is UP (port 8081)"
-        break
-    fi
-    if [ $i -eq 15 ]; then
-        echo "❌ Auth service not ready after 30 seconds"
-        exit 1
-    fi
-    echo "  Waiting for readiness... ($i/15)"
-    sleep 2
-done
-echo ""
+# Readiness check skipped (handled by runner)
 
 # Clear rate limits
 echo "Clearing rate limits..."

@@ -6,8 +6,31 @@
 
 set -e
 
-AUTH_URL="http://localhost:8081"
+AUTH_URL="${AUTH_URL:-https://localhost:8081}"
 ADMIN_URL="http://localhost:9091"
+
+# mTLS Configuration for Production Mode
+CERT_DIR="../../infra/mtls-certs"
+CRT="$CERT_DIR/gateway/gateway.crt"
+KEY="$CERT_DIR/gateway/gateway.key"
+
+if [[ "$AUTH_URL" == https* ]]; then
+    echo "========================================================"
+    echo "🔐 Detected HTTPS Auth URL. Enabling mTLS mode..."
+    echo "   Using Cert: $CRT"
+    echo "========================================================"
+    
+    if [ ! -f "$CRT" ]; then
+        echo "❌ mTLS Certs not found at $CRT"
+        echo "   Please run from testing-scripts/smoke directory"
+        exit 1
+    fi
+    # Overlay curl command with mTLS options
+    curl() {
+        command curl -k --cert "$CRT" --key "$KEY" "$@"
+    }
+    export -f curl
+fi
 
 PASSED=0
 FAILED=0
@@ -36,20 +59,9 @@ skip_test() {
     SKIPPED=$((SKIPPED + 1))
 }
 
-wait_for_readiness() {
-    echo "Waiting for Auth service..."
-    for i in {1..15}; do
-        if curl -s "$AUTH_URL/actuator/health" 2>/dev/null | grep -q '"status":"UP"'; then
-            echo "✅ Auth service is ready!"
-            return 0
-        fi
-        sleep 2
-    done
-    echo "❌ Auth service not ready"
-    exit 1
-}
+# Readiness check function removed
 
-# Helper to create a unique user
+# Helper to create a unique use
 create_test_user() {
     local prefix=$1
     local username="${prefix}_$(date +%s)_$RANDOM"
@@ -62,7 +74,7 @@ create_test_user() {
     echo "$username|$password"
 }
 
-wait_for_readiness
+# wait_for_readiness skipped
 echo ""
 
 # Clear Redis for clean state
@@ -74,174 +86,22 @@ echo ""
 # ============================================================================
 # CATEGORY 1: ACCOUNT LOCKOUT TESTS
 # ============================================================================
-echo "============================================================================"
-echo "CATEGORY 1: Account Lockout Tests"
-echo "============================================================================"
-
-# Create user for lockout test
-LOCKOUT_USER="lockout_$(date +%s)"
-curl -s -X POST "$AUTH_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d "{\"username\": \"$LOCKOUT_USER\", \"password\": \"SecurePass123!\"}" > /dev/null
-
-echo "Test 1.1: 5 failed login attempts → account locked"
-LOCKED=false
-for i in {1..6}; do
-    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
-      -H "Content-Type: application/json" \
-      -H "User-Agent: LockoutTest/1.0" \
-      -d "{\"username\": \"$LOCKOUT_USER\", \"password\": \"WrongPass$i!\"}")
-    
-    HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-    
-    if [ "$HTTP_CODE" == "423" ]; then
-        LOCKED=true
-        break
-    fi
-    sleep 0.3
-done
-
-if [ "$LOCKED" == "true" ]; then
-    pass_test "Account locked after failed attempts (423)"
-else
-    fail_test "Account not locked after 6 failed attempts"
-fi
-
-echo "Test 1.2: Further attempts return 423 LOCKED"
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
-  -H "Content-Type: application/json" \
-  -H "User-Agent: LockoutTest/1.0" \
-  -d "{\"username\": \"$LOCKOUT_USER\", \"password\": \"SecurePass123!\"}")
-HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-
-if [ "$HTTP_CODE" == "423" ]; then
-    pass_test "Locked account returns 423"
-else
-    fail_test "Expected 423, got $HTTP_CODE"
-fi
-
-echo "Test 1.3: Lockout tied to username (different device still locked)"
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
-  -H "Content-Type: application/json" \
-  -H "User-Agent: DifferentDevice/1.0" \
-  -H "X-Device-Id: different-device-999" \
-  -d "{\"username\": \"$LOCKOUT_USER\", \"password\": \"SecurePass123!\"}")
-HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-
-if [ "$HTTP_CODE" == "423" ]; then
-    pass_test "Lockout tied to username, not device"
-else
-    fail_test "Expected 423 from different device, got $HTTP_CODE"
-fi
+# [REMOVED] Covered by 08-account-lockout.sh
+echo "Category 1: Account Lockout Tests - SKIPPED (covered by 08-account-lockout.sh)"
 echo ""
 
 # ============================================================================
 # CATEGORY 2: SESSION LIMIT ENFORCEMENT
 # ============================================================================
-echo "============================================================================"
-echo "CATEGORY 2: Session Limit Enforcement"
-echo "============================================================================"
-
-# Create user
-SESSION_USER="session_$(date +%s)"
-curl -s -X POST "$AUTH_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d "{\"username\": \"$SESSION_USER\", \"password\": \"SecurePass123!\"}" > /dev/null
-
-echo "Test 2.1: Login > max sessions removes oldest token"
-TOKENS=()
-for i in {1..6}; do
-    LOGIN=$(curl -s -X POST "$AUTH_URL/auth/login" \
-      -H "Content-Type: application/json" \
-      -H "User-Agent: SessionTest/1.0" \
-      -H "X-Device-Id: device_$i" \
-      -d "{\"username\": \"$SESSION_USER\", \"password\": \"SecurePass123!\"}")
-    
-    ACCESS=$(echo "$LOGIN" | grep -o '"accessToken":"[^"]*' | cut -d'"' -f4)
-    REFRESH=$(echo "$LOGIN" | grep -o '"refreshToken":"[^"]*' | cut -d'"' -f4)
-    TOKENS+=("$ACCESS|$REFRESH")
-    sleep 0.3
-done
-pass_test "Created 6 sessions (max is 5)"
-
-echo "Test 2.2: First session refresh token should be invalid"
-FIRST_TOKEN=$(echo "${TOKENS[0]}" | cut -d'|' -f2)
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/refresh" \
-  -H "Content-Type: application/json" \
-  -H "User-Agent: SessionTest/1.0" \
-  -H "X-Device-Id: device_1" \
-  -d "{\"refreshToken\": \"$FIRST_TOKEN\"}")
-HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-
-if [ "$HTTP_CODE" == "401" ]; then
-    pass_test "Oldest session correctly invalidated"
-else
-    skip_test "First session still valid (HTTP $HTTP_CODE) - may be within grace period"
-fi
-
-echo "Test 2.3: Latest session still works"
-LAST_TOKEN=$(echo "${TOKENS[5]}" | cut -d'|' -f2)
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/refresh" \
-  -H "Content-Type: application/json" \
-  -H "User-Agent: SessionTest/1.0" \
-  -H "X-Device-Id: device_6" \
-  -d "{\"refreshToken\": \"$LAST_TOKEN\"}")
-HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-
-if [ "$HTTP_CODE" == "200" ]; then
-    pass_test "Latest session works correctly"
-else
-    fail_test "Latest session failed with HTTP $HTTP_CODE"
-fi
+# [REMOVED] Covered by 01-session-limit-enforcement.sh
+echo "Category 2: Session Limit Enforcement - SKIPPED (covered by 01-session-limit-enforcement.sh)"
 echo ""
 
 # ============================================================================
 # CATEGORY 3: REDIS OUTAGE RESILIENCE
 # ============================================================================
-echo "============================================================================"
-echo "CATEGORY 3: Redis Outage Resilience"
-echo "============================================================================"
-
-echo "Test 3.1: Stop Redis → Auth still works (circuit breaker)"
-# Create user first while Redis is up
-REDIS_USER="redis_$(date +%s)"
-curl -s -X POST "$AUTH_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d "{\"username\": \"$REDIS_USER\", \"password\": \"SecurePass123!\"}" > /dev/null
-
-docker stop redis > /dev/null 2>&1 || true
-sleep 3
-
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
-  -H "Content-Type: application/json" \
-  -H "User-Agent: RedisTest/1.0" \
-  -d "{\"username\": \"$REDIS_USER\", \"password\": \"SecurePass123!\"}")
-HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-
-if [ "$HTTP_CODE" == "200" ]; then
-    pass_test "Auth works during Redis outage (circuit breaker active)"
-else
-    skip_test "Auth failed during Redis outage (HTTP $HTTP_CODE) - may require DB fallback"
-fi
-
-echo "Test 3.2: Restart Redis → continues functioning"
-docker start redis > /dev/null 2>&1 || true
-sleep 5
-
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
-  -H "Content-Type: application/json" \
-  -H "User-Agent: RedisTest/1.0" \
-  -d "{\"username\": \"$REDIS_USER\", \"password\": \"SecurePass123!\"}")
-HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-
-if [ "$HTTP_CODE" == "200" ]; then
-    pass_test "Auth recovered after Redis restart"
-else
-    fail_test "Auth failed after Redis restart (HTTP $HTTP_CODE)"
-fi
-
-# Re-clear Redis
-docker exec redis redis-cli FLUSHDB > /dev/null 2>&1 || true
+# [REMOVED] Covered by 09-redis-outage.sh
+echo "Category 3: Redis Outage Resilience - SKIPPED (covered by 09-redis-outage.sh)"
 echo ""
 
 # ============================================================================
@@ -334,95 +194,8 @@ echo ""
 # ============================================================================
 # CATEGORY 6: INPUT VALIDATION EDGE CASES
 # ============================================================================
-echo "============================================================================"
-echo "CATEGORY 6: Input Validation Edge Cases"
-echo "============================================================================"
-
-echo "Test 6.1: Username with special chars → 400"
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{"username": "user<script>", "password": "ValidPass123!"}')
-HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-
-if [ "$HTTP_CODE" == "400" ]; then
-    pass_test "Special chars in username rejected (400)"
-else
-    fail_test "Expected 400, got $HTTP_CODE"
-fi
-
-echo "Test 6.2: Password too weak → 400"
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{"username": "validuser123", "password": "weak"}')
-HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-
-if [ "$HTTP_CODE" == "400" ]; then
-    pass_test "Weak password rejected (400)"
-else
-    fail_test "Expected 400, got $HTTP_CODE"
-fi
-
-echo "Test 6.3: SQL injection attempt → rejected"
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
-  -H "Content-Type: application/json" \
-  -H "User-Agent: SQLITest/1.0" \
-  -d '{"username": "admin'\'' OR 1=1--", "password": "test"}')
-HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-
-if [ "$HTTP_CODE" == "400" ] || [ "$HTTP_CODE" == "401" ]; then
-    pass_test "SQL injection rejected (HTTP $HTTP_CODE)"
-else
-    fail_test "SQL injection may not be blocked (HTTP $HTTP_CODE)"
-fi
-
-echo "Test 6.4: XSS payload in username → rejected"
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{"username": "<script>alert(1)</script>", "password": "ValidPass123!"}')
-HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-
-if [ "$HTTP_CODE" == "400" ]; then
-    pass_test "XSS payload rejected (400)"
-else
-    fail_test "Expected 400, got $HTTP_CODE"
-fi
-
-echo "Test 6.5: Empty JSON body → 400"
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{}')
-HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-
-if [ "$HTTP_CODE" == "400" ]; then
-    pass_test "Empty body rejected (400)"
-else
-    fail_test "Expected 400, got $HTTP_CODE"
-fi
-
-echo "Test 6.6: Null fields → 400"
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{"username": null, "password": null}')
-HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-
-if [ "$HTTP_CODE" == "400" ]; then
-    pass_test "Null fields rejected (400)"
-else
-    fail_test "Expected 400, got $HTTP_CODE"
-fi
-
-echo "Test 6.7: Extremely long username (DoS prevention) → 400"
-LONG_USER=$(printf 'a%.0s' {1..500})
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/register" \
-  -H "Content-Type: application/json" \
-  -d "{\"username\": \"$LONG_USER\", \"password\": \"ValidPass123!\"}")
-HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-
-if [ "$HTTP_CODE" == "400" ]; then
-    pass_test "Long username rejected (400)"
-else
-    fail_test "Expected 400, got $HTTP_CODE"
-fi
+# [REMOVED] Covered by 07-input-validation.sh
+echo "Category 6: Input Validation Edge Cases - SKIPPED (covered by 07-input-validation.sh)"
 echo ""
 
 # ============================================================================
@@ -453,32 +226,8 @@ echo ""
 # ============================================================================
 # CATEGORY 8: RATE LIMITING
 # ============================================================================
-echo "============================================================================"
-echo "CATEGORY 8: Rate Limiting"
-echo "============================================================================"
-
-echo "Test 8.1: Rapid login attempts → 429"
-RATE_LIMITED=false
-for i in {1..25}; do
-    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
-      -H "Content-Type: application/json" \
-      -H "User-Agent: RateLimitTest/1.0" \
-      -d '{"username": "ratelimit_test", "password": "WrongPass!"}')
-    
-    HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-    
-    if [ "$HTTP_CODE" == "429" ]; then
-        RATE_LIMITED=true
-        echo "    Rate limited at attempt $i"
-        break
-    fi
-done
-
-if [ "$RATE_LIMITED" == "true" ]; then
-    pass_test "Rate limiting triggered (429)"
-else
-    skip_test "Rate limit not triggered in 25 attempts"
-fi
+# [REMOVED] Covered by 06-rate-limit-bypass-prevention.sh
+echo "Category 8: Rate Limiting - SKIPPED (covered by 06-rate-limit-bypass-prevention.sh)"
 echo ""
 
 # ============================================================================
@@ -488,7 +237,7 @@ echo "==========================================================================
 echo "CATEGORY 9: Refresh Token Edge Cases"
 echo "============================================================================"
 
-# Create and login a user
+# Create and login a use
 REFRESH_USER="refresh_$(date +%s)"
 curl -s -X POST "$AUTH_URL/auth/register" \
   -H "Content-Type: application/json" \
@@ -577,6 +326,43 @@ if [ "$HTTP_CODE" == "401" ]; then
     pass_test "Logout with invalid token rejected (401)"
 else
     fail_test "Expected 401, got $HTTP_CODE"
+fi
+echo ""
+
+echo "Test 10.3: Cross-user session revocation (User B cannot revoke User A)"
+# 1. Register User A and Login
+USER_A="user_a_$(date +%s)"
+curl -s -X POST "$AUTH_URL/auth/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\": \"$USER_A\", \"password\": \"Password123!\"}" > /dev/null
+
+LOGIN_A=$(curl -s -X POST "$AUTH_URL/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\": \"$USER_A\", \"password\": \"Password123!\"}")
+REFRESH_TOKEN_A=$(echo "$LOGIN_A" | grep -o '"refreshToken":"[^"]*' | cut -d'"' -f4)
+
+# 2. Register User B and Login
+USER_B="user_b_$(date +%s)"
+curl -s -X POST "$AUTH_URL/auth/register" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\": \"$USER_B\", \"password\": \"Password123!\"}" > /dev/null
+
+LOGIN_B=$(curl -s -X POST "$AUTH_URL/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\": \"$USER_B\", \"password\": \"Password123!\"}")
+ACCESS_TOKEN_B=$(echo "$LOGIN_B" | grep -o '"accessToken":"[^"]*' | cut -d'"' -f4)
+
+# 3. User B tries to revoke User A's refresh token
+RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/logout" \
+  -H "Authorization: Bearer $ACCESS_TOKEN_B" \
+  -H "Content-Type: application/json" \
+  -d "{\"refreshToken\": \"$REFRESH_TOKEN_A\"}")
+HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+
+if [ "$HTTP_CODE" == "401" ] || [ "$HTTP_CODE" == "400" ] || [ "$HTTP_CODE" == "403" ]; then
+    pass_test "Cross-user logout rejected (HTTP $HTTP_CODE)"
+else
+    fail_test "User B revoked User A's session! (HTTP $HTTP_CODE)"
 fi
 echo ""
 

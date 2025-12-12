@@ -4,6 +4,8 @@ import com.rido.auth.dto.TokenResponse;
 import com.rido.auth.model.UserEntity;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class AuthService {
 
@@ -36,7 +38,11 @@ public class AuthService {
         return refreshTokenService.refresh(refreshToken, deviceId, ip, userAgent);
     }
 
-    public void logout(String refreshToken, String accessToken) {
-        logoutService.logout(refreshToken, accessToken);
+    /**
+     * Logout user by revoking their refresh token.
+     * FIX-AUTH-003: Added callingUserId to verify session ownership.
+     */
+    public void logout(String refreshToken, String accessToken, UUID callingUserId) {
+        logoutService.logout(refreshToken, accessToken, callingUserId);
     }
 }
