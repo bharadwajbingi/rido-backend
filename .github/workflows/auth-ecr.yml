@@ -43,4 +43,4 @@ jobs:
           script: |
             cd ~
             docker pull 992382842562.dkr.ecr.ap-south-1.amazonaws.com/rido-auth:latest
-            docker-compose -f infra/docker-compose.yml up -d auth
+            docker compose -f infra/docker-compose.yml up -d auth
