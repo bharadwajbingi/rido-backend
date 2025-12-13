@@ -1,0 +1,46 @@
+name: Auth CI/CD (ECR)
+
+on:
+  push:
+    paths:
+      - "services/auth/**"
+      - "docker/auth.Dockerfile"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region ap-south-1 | \
+          docker login --username AWS --password-stdin 992382842562.dkr.ecr.ap-south-1.amazonaws.com
+
+      - name: Build image
+        run: |
+          docker build -t rido-auth -f docker/auth.Dockerfile .
+
+      - name: Push image
+        run: |
+          docker tag rido-auth:latest 992382842562.dkr.ecr.ap-south-1.amazonaws.com/rido-auth:latest
+          docker push 992382842562.dkr.ecr.ap-south-1.amazonaws.com/rido-auth:latest
+
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~
+            docker pull 992382842562.dkr.ecr.ap-south-1.amazonaws.com/rido-auth:latest
+            docker compose -f infra/docker-compose.yml up -d auth
