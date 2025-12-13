@@ -16,6 +16,7 @@
 
 # Package Files
 *.jar
+!gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
 *.ear
@@ -141,12 +142,6 @@ gateway/src/main/resources/application-dev.yml
 *.postman_test_run.json
 *Test*.postman_test_run.json
 
-# Generated test collections (keep source generators, ignore generated JSONs)
-# Uncomment if you want to regenerate collections every time:
-# postman-collections/*.json
-# !postman-collections/COMPLETE*.json
-# !postman-collections/README.md
-
 ##############################
 # Flyway / Database
 ##############################
@@ -154,12 +149,14 @@ gateway/src/main/resources/application-dev.yml
 # Ignore generated DB files, backups
 *.sql
 !**/src/main/resources/db/migration/*.sql
+!infra/initdb/*.sql
 *.db
 *.dump
 
 ##############################
 # Archives & Backups
 ##############################
+
 zip-tool/
 *.zip
 *.rar
