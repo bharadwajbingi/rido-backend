@@ -95,14 +95,17 @@ services:
   # AUTH SERVICE
   # ===========================
   auth:
-    build:
-      context: ..
-      dockerfile: docker/auth.Dockerfile
+    image: auth-service:latest
+    # build:
+    #   context: ..
+    #   dockerfile: docker/auth.Dockerfile
     container_name: auth
     depends_on:
       postgres:
         condition: service_started
       redis:
+        condition: service_started
+      vault:
         condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: dev
@@ -218,7 +221,7 @@ services:
         condition: service_started
     environment:
       SPRING_MAIN_ALLOW_BEAN_DEFINITION_OVERRIDING: "true"
-      JWKS_URL: https://auth:8443/auth/keys/jwks.json
+      JWKS_URL: http://auth:8443/auth/keys/jwks.json
       
       # ===========================
       # 🔒 mTLS CLIENT CONFIG
