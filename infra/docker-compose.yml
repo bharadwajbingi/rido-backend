@@ -95,7 +95,7 @@ services:
   # AUTH SERVICE
   # ===========================
   auth:
-    image: 992382842562.dkr.ecr.ap-south-1.amazonaws.com/rido-auth
+    image: 992382842562.dkr.ecr.ap-south-1.amazonaws.com/rido-auth:latest
     # build:
     #   context: ..
     #   dockerfile: docker/auth.Dockerfile
