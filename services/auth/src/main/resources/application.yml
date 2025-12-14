@@ -118,6 +118,3 @@ management:
 
     tags:
       application: auth
-# CI Test Trigger
-# CI Demo Run 2
-# Path Filter Test
