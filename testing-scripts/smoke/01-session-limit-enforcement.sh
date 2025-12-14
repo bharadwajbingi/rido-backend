@@ -5,8 +5,8 @@
 set -e
 
 # Direct Auth service ports (standalone mode - no Gateway)
-AUTH_URL="${AUTH_URL:-http://localhost:8081}"
-ADMIN_URL="http://localhost:9091"
+AUTH_URL="http://3.110.168.30:8443"
+ADMIN_URL="http://100.66.70.6:9091"
 MAX_SESSIONS=5  # Default from application.yml
 
 echo "=========================================="

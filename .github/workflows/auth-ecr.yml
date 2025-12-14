@@ -2,14 +2,19 @@ name: Auth CI/CD (ECR)
 
 on:
   push:
+    branches: [ "**" ] # Run on all branches
+    paths:
+      - "services/auth/**"
+      - "docker/auth.Dockerfile"
+  pull_request:
+    branches: [ "main" ]
     paths:
       - "services/auth/**"
       - "docker/auth.Dockerfile"
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -25,41 +30,31 @@ jobs:
           aws ecr get-login-password --region ap-south-1 | \
           docker login --username AWS --password-stdin 992382842562.dkr.ecr.ap-south-1.amazonaws.com
 
-      - name: Build image
+      - name: Build image (Validation)
         run: |
           docker build -t rido-auth -f docker/auth.Dockerfile .
 
-      - name: Push image
+      - name: Push image (Main Only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           docker tag rido-auth:latest 992382842562.dkr.ecr.ap-south-1.amazonaws.com/rido-auth:latest
           docker push 992382842562.dkr.ecr.ap-south-1.amazonaws.com/rido-auth:latest
 
-      - name: Deploy on EC2
+      - name: Deploy on EC2 (Main Only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Login to ECR
-            aws ecr get-login-password --region ap-south-1 | \
-            docker login --username AWS --password-stdin 992382842562.dkr.ecr.ap-south-1.amazonaws.com
-            
-            # Pull latest image
+            aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 992382842562.dkr.ecr.ap-south-1.amazonaws.com
             docker pull 992382842562.dkr.ecr.ap-south-1.amazonaws.com/rido-auth:latest
-            
-            # Stop and remove old container
             docker stop auth || true
             docker rm auth || true
-            
-            # Infrastructure endpoints (Tailscale private IPs from laptop)
-            # Phase 1: Points to laptop via Tailscale
-            # Phase 2: Just change secrets to RDS/ElastiCache endpoints - NO CODE CHANGES!
             POSTGRES_HOST="${{ secrets.POSTGRES_HOST }}"
             REDIS_HOST="${{ secrets.REDIS_HOST }}"
             VAULT_HOST="${{ secrets.VAULT_HOST }}"
-            
-            # Run new container with proper configuration
             docker run -d \
               --name auth \
               --restart unless-stopped \
@@ -84,9 +79,6 @@ jobs:
               -p 8443:8443 \
               -p 9091:9091 \
               992382842562.dkr.ecr.ap-south-1.amazonaws.com/rido-auth:latest
-            
-            # Wait and check health
             echo "Waiting for service to start..."
             sleep 10
             curl -f http://localhost:9091/admin/health || echo "Health check failed!"
-
