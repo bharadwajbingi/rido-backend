@@ -2,7 +2,8 @@ name: Monorepo PR Validation
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,66 +18,88 @@ jobs:
       gateway: ${{ steps.filter.outputs.gateway }}
       profile: ${{ steps.filter.outputs.profile }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
             auth:
-              - 'services/auth/**'
-              - 'docker/auth.Dockerfile'
+              - services/auth/**
+              - docker/auth.Dockerfile
             gateway:
-              - 'services/gateway/**'
-              - 'docker/gateway.Dockerfile'
+              - services/gateway/**
+              - docker/gateway.Dockerfile
             profile:
-              - 'services/profile/**'
-              - 'docker/profile.Dockerfile'
+              - services/profile/**
+              - docker/profile.Dockerfile
 
-  # 2. Conditional Validations
+  # 2. Auth validation (tests + build)
   validate-auth:
     needs: changes
     if: ${{ needs.changes.outputs.auth == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Build Auth
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Run Auth Unit Tests
+        run: ./gradlew :services:auth:test
+
+      - name: Build Auth Docker Image
         run: docker build -t rido-auth-check -f docker/auth.Dockerfile .
 
+  # 3. Gateway validation (build only)
   validate-gateway:
     needs: changes
     if: ${{ needs.changes.outputs.gateway == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Build Gateway
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Gateway Docker Image
         run: docker build -t rido-gateway-check -f docker/gateway.Dockerfile .
 
+  # 4. Profile validation (build only)
   validate-profile:
     needs: changes
     if: ${{ needs.changes.outputs.profile == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Build Profile
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Profile Docker Image
         run: docker build -t rido-profile-check -f docker/profile.Dockerfile .
 
-  # 3. Unified Status Check (Required Branch Protection)
+  # 5. Unified Status Check (required by branch protection)
   ci-pass:
     runs-on: ubuntu-latest
-    needs: [validate-auth, validate-gateway, validate-profile]
+    needs:
+      - validate-auth
+      - validate-gateway
+      - validate-profile
     if: always()
     steps:
-      - name: Verify Workflow Status
+      - name: Verify workflow results
         run: |
-          # Check results of all dependent jobs
           results="${{ join(needs.*.result, ' ') }}"
           echo "Job Results: $results"
-          
-          # If any job failed or was cancelled, fail this check
+
           if [[ "$results" =~ "failure" ]] || [[ "$results" =~ "cancelled" ]]; then
-            echo "❌ Validation Failed"
+            echo "❌ CI validation failed"
             exit 1
           fi
-          
-          echo "✅ Validation Passed (or Skipped Correctly)"
+
+          echo "✅ CI validation passed (or skipped correctly)"
           exit 0
