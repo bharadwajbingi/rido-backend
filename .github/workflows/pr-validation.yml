@@ -1,0 +1,82 @@
+name: Monorepo PR Validation
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 1. Detect Changes
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      auth: ${{ steps.filter.outputs.auth }}
+      gateway: ${{ steps.filter.outputs.gateway }}
+      profile: ${{ steps.filter.outputs.profile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            auth:
+              - 'services/auth/**'
+              - 'docker/auth.Dockerfile'
+            gateway:
+              - 'services/gateway/**'
+              - 'docker/gateway.Dockerfile'
+            profile:
+              - 'services/profile/**'
+              - 'docker/profile.Dockerfile'
+
+  # 2. Conditional Validations
+  validate-auth:
+    needs: changes
+    if: ${{ needs.changes.outputs.auth == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Auth
+        run: docker build -t rido-auth-check -f docker/auth.Dockerfile .
+
+  validate-gateway:
+    needs: changes
+    if: ${{ needs.changes.outputs.gateway == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Gateway
+        run: docker build -t rido-gateway-check -f docker/gateway.Dockerfile .
+
+  validate-profile:
+    needs: changes
+    if: ${{ needs.changes.outputs.profile == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Profile
+        run: docker build -t rido-profile-check -f docker/profile.Dockerfile .
+
+  # 3. Unified Status Check (Required Branch Protection)
+  ci-pass:
+    runs-on: ubuntu-latest
+    needs: [validate-auth, validate-gateway, validate-profile]
+    if: always()
+    steps:
+      - name: Verify Workflow Status
+        run: |
+          # Check results of all dependent jobs
+          results="${{ join(needs.*.result, ' ') }}"
+          echo "Job Results: $results"
+          
+          # If any job failed or was cancelled, fail this check
+          if [[ "$results" =~ "failure" ]] || [[ "$results" =~ "cancelled" ]]; then
+            echo "❌ Validation Failed"
+            exit 1
+          fi
+          
+          echo "✅ Validation Passed (or Skipped Correctly)"
+          exit 0
