@@ -6,6 +6,8 @@ WORKDIR /app
 
 RUN apk add --no-cache dos2unix
 
+
+
 COPY gradlew gradlew
 COPY gradle gradle
 COPY build.gradle.kts settings.gradle.kts ./
