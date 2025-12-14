@@ -67,7 +67,7 @@ jobs:
               -e SERVER_PORT=8443 \
               -e ADMIN_SERVER_PORT=9091 \
               -e AUTH_STANDALONE_MODE=true \
-              -e SPRING_DATASOURCE_URL="jdbc:postgresql://${POSTGRES_HOST}:5432/ride_hailing?currentSchema=auth&sslmode=disable" \
+              -e SPRING_DATASOURCE_URL="jdbc:postgresql://${POSTGRES_HOST}:5432/ride_hailing?currentSchema=auth&sslmode=disable&gssEncMode=disable" \
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.DB_USERNAME }}" \
               -e SPRING_DATASOURCE_PASSWORD="${{ secrets.DB_PASSWORD }}" \
               -e REDIS_HOST=${REDIS_HOST} \
