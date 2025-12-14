@@ -5,7 +5,7 @@
 set -e
 
 # Direct Auth service ports (standalone mode - no Gateway)
-AUTH_URL="${AUTH_URL:-https://localhost:8081}"
+AUTH_URL="${AUTH_URL:-http://localhost:8081}"
 ADMIN_URL="http://localhost:9091"
 
 echo "=========================================="

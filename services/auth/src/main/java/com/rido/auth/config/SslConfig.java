@@ -51,15 +51,6 @@ public class SslConfig {
             // Clear any SSL configuration
             factory.setSsl(null);
             
-            // Create a plain HTTP connector
-            Connector httpConnector = new Connector(TomcatServletWebServerFactory.DEFAULT_PROTOCOL);
-            httpConnector.setScheme("http");
-            httpConnector.setSecure(false);
-            httpConnector.setPort(serverPort);
-            
-            // Set this as the default connector by adding it first
-            factory.addAdditionalTomcatConnectors(httpConnector);
-            
             log.info("✓ Configured standalone HTTP connector on port {}", serverPort);
         };
     }

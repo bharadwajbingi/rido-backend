@@ -6,7 +6,7 @@ spring:
     name: profile-service
 
   r2dbc:
-    url: r2dbc:postgresql://postgres:5432/ride_hailing
+    url: r2dbc:postgresql://postgres:5432/ride_hailing?schema=profile
     username: rh_user
     password: rh_pass
     pool:
@@ -14,12 +14,14 @@ spring:
       max-size: 20
 
   flyway:
-    url: jdbc:postgresql://postgres:5432/ride_hailing
+    url: jdbc:postgresql://postgres:5432/ride_hailing?currentSchema=profile
     user: rh_user
     password: rh_pass
     locations: classpath:db/migration
     enabled: true
-    baseline-on-migrate: true   # ✅ REQUIRED FIX
+    baseline-on-migrate: false
+    schemas: profile
+    default-schema: profile   # ✅ REQUIRED FIX
 
   data:
     redis:
@@ -44,3 +46,14 @@ logging:
     org.springframework.r2dbc: INFO
     org.flywaydb: INFO
     org.apache.kafka: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true

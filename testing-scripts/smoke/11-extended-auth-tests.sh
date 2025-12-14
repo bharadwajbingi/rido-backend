@@ -6,7 +6,7 @@
 
 set -e
 
-AUTH_URL="${AUTH_URL:-https://localhost:8081}"
+AUTH_URL="${AUTH_URL:-http://localhost:8081}"
 ADMIN_URL="http://localhost:9091"
 
 # mTLS Configuration for Production Mode
@@ -162,6 +162,7 @@ if [ "$HTTP_CODE" == "200" ]; then
     pass_test "Admin health endpoint accessible (200)"
 else
     fail_test "Admin health failed with $HTTP_CODE"
+    echo "    Response body: $(echo "$RESPONSE" | head -n -1)"
 fi
 
 echo "Test 5.2: Admin login endpoint accessible on 9091"
@@ -463,7 +464,7 @@ curl -s -X POST "$AUTH_URL/auth/register" \
   -H "Content-Type: application/json" \
   -d "{\"username\": \"$DB_USER\", \"password\": \"SecurePass123!\"}" > /dev/null
 
-DB_CHECK=$(docker exec postgres psql -U rh_user -d ride_hailing -t -c "SELECT COUNT(*) FROM users WHERE username='$DB_USER';" 2>/dev/null | tr -d ' ')
+DB_CHECK=$(docker exec postgres psql -U rh_user -d ride_hailing -t -c "SELECT COUNT(*) FROM auth.users WHERE username='$DB_USER';" 2>/dev/null | tr -d ' ')
 
 if [ "$DB_CHECK" == "1" ]; then
     pass_test "User row created in database"
@@ -477,7 +478,7 @@ LOGIN=$(curl -s -X POST "$AUTH_URL/auth/login" \
   -H "User-Agent: DBTest/1.0" \
   -d "{\"username\": \"$DB_USER\", \"password\": \"SecurePass123!\"}")
 
-TOKEN_CHECK=$(docker exec postgres psql -U rh_user -d ride_hailing -t -c "SELECT COUNT(*) FROM refresh_tokens rt JOIN users u ON rt.user_id = u.id WHERE u.username='$DB_USER';" 2>/dev/null | tr -d ' ')
+TOKEN_CHECK=$(docker exec postgres psql -U rh_user -d ride_hailing -t -c "SELECT COUNT(*) FROM auth.refresh_tokens rt JOIN auth.users u ON rt.user_id = u.id WHERE u.username='$DB_USER';" 2>/dev/null | tr -d ' ')
 
 if [ "$TOKEN_CHECK" -ge "1" ]; then
     pass_test "Refresh token created in database"

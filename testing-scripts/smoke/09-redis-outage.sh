@@ -4,6 +4,15 @@
 
 set -e
 
+# Ensure Redis is restarted even if test fails
+cleanup() {
+    echo "🧹 CLEANUP: Ensures Redis is UP..."
+    docker start redis > /dev/null 2>&1 || true
+    # Wait briefly for it to come up
+    sleep 5
+}
+trap cleanup EXIT
+
 # Direct Auth service port (standalone mode - no Gateway)
 AUTH_URL="${AUTH_URL:-http://localhost:8081}"
 
@@ -67,7 +76,7 @@ echo ""
 echo "Test 3: Verify DB lockout persists during outage..."
 # Lock username manually in DB to test DB check fallback
 docker exec postgres psql -U rh_user -d ride_hailing -c \
-  "UPDATE users SET locked_until = NOW() + INTERVAL '30 minutes' WHERE username = '$TEST_USER';" > /dev/null 2>&1
+  "UPDATE auth.users SET locked_until = NOW() + INTERVAL '30 minutes' WHERE username = '$TEST_USER';" > /dev/null 2>&1
 
 # Try login (Should be locked)
 LOCK_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
@@ -92,13 +101,17 @@ sleep 15 # Wait for Redis to start and Circuit Breaker to close (half-open -> cl
 echo "Test 4: Verify system recovers..."
 # Clear DB lock
 docker exec postgres psql -U rh_user -d ride_hailing -c \
-  "UPDATE users SET locked_until = NULL WHERE username = '$TEST_USER';" > /dev/null 2>&1
+  "UPDATE auth.users SET locked_until = NULL WHERE username = '$TEST_USER';" > /dev/null 2>&1
 
-# Login
-RECOVER_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
-  -H "Content-Type: application/json" \
-  -H "User-Agent: RedisTest/1.0" \
-  -d "{\"username\": \"$TEST_USER\", \"password\": \"Test123Pass!\"}")
+# Login (Perform multiple times to close Circuit Breaker from Half-Open)
+# Config: permittedNumberOfCallsInHalfOpenState: 3
+for i in {1..4}; do
+    RECOVER_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$AUTH_URL/auth/login" \
+      -H "Content-Type: application/json" \
+      -H "User-Agent: RedisTest/1.0" \
+      -d "{\"username\": \"$TEST_USER\", \"password\": \"Test123Pass!\"}")
+    sleep 0.5
+done
 
 RECOVER_CODE=$(echo "$RECOVER_RESPONSE" | tail -1)
 

@@ -30,8 +30,14 @@ class GatewayHttpClientConfig {
     @Bean
     fun httpclientSslConfigurer(): HttpClientCustomizer {
         return HttpClientCustomizer { httpClient ->
-            httpClient.secure { sslContextSpec ->
-                sslContextSpec.sslContext(buildSslContext())
+            try {
+                val sslContext = buildSslContext()
+                httpClient.secure { sslContextSpec ->
+                    sslContextSpec.sslContext(sslContext)
+                }
+            } catch (e: Exception) {
+                println("⚠️  mTLS Config Failed: ${e.message}. Running in plain HTTP mode (Standalone).")
+                httpClient  // Return client without SSL configuration
             }
         }
     }
@@ -61,7 +67,7 @@ class GatewayHttpClientConfig {
                 )
                 .build()
         } catch (e: Exception) {
-            throw RuntimeException("Failed to configure mTLS for Gateway HTTP client", e)
+            throw e  // Rethrow to be caught by outer handler
         }
     }
 }

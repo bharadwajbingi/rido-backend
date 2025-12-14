@@ -20,14 +20,14 @@ spring:
 
         # Authenticated /auth endpoints
         - id: auth-me
-          uri: https://auth:8443
+          uri: http://auth:8443
           predicates:
             - Path=/auth/me
           filters:
             - JwtAuth
 
         - id: auth-sessions
-          uri: https://auth:8443
+          uri: http://auth:8443
           predicates:
             - Path=/auth/sessions,/auth/sessions/**
           filters:
@@ -35,7 +35,7 @@ spring:
 
         # Public /auth endpoints
         - id: auth-public
-          uri: https://auth:8443
+          uri: http://auth:8443
           predicates:
             - Path=/auth/**
           filters:
@@ -44,7 +44,7 @@ spring:
 
 
         - id: secure-info
-          uri: https://auth:8443
+          uri: http://auth:8443
           predicates:
             - Path=/secure/info
           filters:

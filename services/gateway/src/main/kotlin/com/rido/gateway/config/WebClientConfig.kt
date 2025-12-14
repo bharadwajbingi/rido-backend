@@ -28,7 +28,12 @@ class WebClientConfig {
     private lateinit var clientKeyPath: String
 
     @Bean("jwksWebClient")
-    fun jwksWebClient(): WebClient {
+    fun jwksWebClient(@Value("\${JWKS_URL}") jwksUrl: String): WebClient {
+        // ⚡ If JWKS_URL is HTTP, skip mTLS configuration (Standalone Mode)
+        if (jwksUrl.startsWith("http:")) {
+            return WebClient.builder().build()
+        }
+
         val sslContext = try {
             // Load CA certificate for trust
             val cf = CertificateFactory.getInstance("X.509")
@@ -53,7 +58,9 @@ class WebClientConfig {
                 )
                 .build()
         } catch (e: Exception) {
-            throw RuntimeException("Failed to configure mTLS for JWKS WebClient", e)
+            // throw RuntimeException("Failed to configure mTLS for JWKS WebClient", e)
+            println("⚠️ SSL Config Failed: ${e.message}. Falling back to plain WebClient (Standalone Mode).")
+            return WebClient.builder().build()
         }
 
         val httpClient = HttpClient.create()

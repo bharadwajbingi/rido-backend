@@ -17,8 +17,8 @@ REGISTER_RESPONSE=$(curl -s -X POST "$AUTH_URL/auth/register" \
     -H "Content-Type: application/json" \
     -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\",\"role\":\"RIDER\"}")
 
-TOKEN=$(echo "$REGISTER_RESPONSE" | jq -r '.token // empty')
-USER_ID=$(echo "$REGISTER_RESPONSE" | jq -r '.userId // empty')
+TOKEN=$(extract_token "$REGISTER_RESPONSE")
+USER_ID=$(extract_user_id "$REGISTER_RESPONSE")
 
 if [ -z "$TOKEN" ]; then
     echo -e "${RED}❌ Failed to setup test user${NC}"

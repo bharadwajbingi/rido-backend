@@ -17,8 +17,8 @@ DRIVER_RESPONSE=$(curl -s -X POST "$AUTH_URL/auth/register" \
     -H "Content-Type: application/json" \
     -d "{\"username\":\"$DRIVER_USERNAME\",\"password\":\"$PASSWORD\",\"role\":\"DRIVER\"}")
 
-DRIVER_TOKEN=$(echo "$DRIVER_RESPONSE" | jq -r '.token // empty')
-DRIVER_USER_ID=$(echo "$DRIVER_RESPONSE" | jq -r '.userId // empty')
+DRIVER_TOKEN=$(extract_token "$DRIVER_RESPONSE")
+DRIVER_USER_ID=$(extract_user_id "$DRIVER_RESPONSE")
 
 if [ -z "$DRIVER_TOKEN" ]; then
     echo -e "${RED}❌ Failed to register driver${NC}"
@@ -48,8 +48,8 @@ ADMIN_RESPONSE=$(curl -s -X POST "$AUTH_URL/auth/register" \
     -H "Content-Type: application/json" \
     -d "{\"username\":\"$ADMIN_USERNAME\",\"password\":\"$PASSWORD\",\"role\":\"ADMIN\"}")
 
-ADMIN_TOKEN=$(echo "$ADMIN_RESPONSE" | jq -r '.token // empty')
-ADMIN_USER_ID=$(echo "$ADMIN_RESPONSE" | jq -r '.userId // empty')
+ADMIN_TOKEN=$(extract_token "$ADMIN_RESPONSE")
+ADMIN_USER_ID=$(extract_user_id "$ADMIN_RESPONSE")
 
 if [ -z "$ADMIN_TOKEN" ]; then
     echo -e "${RED}❌ Failed to register admin${NC}"

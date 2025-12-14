@@ -20,10 +20,17 @@ RUN --mount=type=cache,target=/root/.gradle \
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# 🔴 IMPORTANT: copy EXACT jar
-COPY --from=builder /app/services/auth/build/libs/*-boot.jar app.jar
+# Install wget for health checks
+RUN apk add --no-cache wget
+
+# Copy the built Spring Boot jar
+COPY --from=builder /app/services/auth/build/libs/*.jar app.jar
 
 EXPOSE 8443 9091
+
+# Health check on admin port
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:9091/admin/health || exit 1
 
 # 🔴 THIS LINE FIXES EVERYTHING
 ENTRYPOINT ["java","-jar","/app/app.jar"]

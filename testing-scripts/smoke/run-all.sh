@@ -19,7 +19,7 @@ NC='\033[0m' # No Color
 # Global Configuration
 # Global Configuration
 # We use localhost because Docker Desktop handles port binding for both Windows and WSL
-export AUTH_URL="https://localhost:8081"
+export AUTH_URL="http://localhost:8081"
 export ADMIN_URL="http://localhost:9091"
 
 # mTLS Certificate Configuration

@@ -39,7 +39,7 @@ register_user() {
     local password="$2"
     local role="${3:-RIDER}"
     
-    local response=$(curl -s -X POST "$AUTH_URL/auth/register" \
+    local response=$(curl -s -X POST "$GATEWAY_URL/auth/register" \
         -H "Content-Type: application/json" \
         -d "{\"username\":\"$username\",\"password\":\"$password\",\"role\":\"$role\"}")
     
@@ -48,12 +48,38 @@ register_user() {
 
 # Helper function to extract token from register response
 extract_token() {
-    echo "$1" | jq -r '.token // empty'
+    echo "$1" | jq -r '.accessToken // .token // empty'
 }
 
-# Helper function to extract userId from register response
+# Helper function to decode JWT and extract userId from 'sub' claim
 extract_user_id() {
-    echo "$1" | jq -r '.userId // empty'
+    local response="$1"
+    
+    # Try to get userId directly from response first (if it exists)
+    local user_id=$(echo "$response" | jq -r '.userId // empty')
+    if [ -n "$user_id" ]; then
+        echo "$user_id"
+        return
+    fi
+    
+    # Extract accessToken and decode JWT to get userId from 'sub' claim
+    local token=$(echo "$response" | jq -r '.accessToken // .token // empty')
+    if [ -z "$token" ]; then
+        return
+    fi
+    
+    # JWT format: header.payload.signature
+    # Extract payload (middle part) and decode base64
+    local payload=$(echo "$token" | cut -d'.' -f2)
+    
+    # Add padding if needed for base64
+    local padding=$((4 - ${#payload} % 4))
+    if [ $padding -ne 4 ]; then
+        payload="${payload}$(printf '=%.0s' $(seq 1 $padding))"
+    fi
+    
+    # Decode and extract 'sub' claim
+    echo "$payload" | base64 -d 2>/dev/null | jq -r '.sub // empty'
 }
 
 # Helper function to check HTTP status code

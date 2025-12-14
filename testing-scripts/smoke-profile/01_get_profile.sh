@@ -13,12 +13,12 @@ echo -e "${BLUE}TEST: $TEST_NAME${NC}"
 echo "→ Registering test user..."
 USERNAME="test_profile_$(date +%s)"
 PASSWORD="TestPass123!"
-REGISTER_RESPONSE=$(curl -s -X POST "$AUTH_URL/auth/register" \
+REGISTER_RESPONSE=$(curl -s -X POST "$GATEWAY_URL/auth/register" \
     -H "Content-Type: application/json" \
     -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\",\"role\":\"RIDER\"}")
 
-TOKEN=$(echo "$REGISTER_RESPONSE" | jq -r '.token // empty')
-USER_ID=$(echo "$REGISTER_RESPONSE" | jq -r '.userId // empty')
+TOKEN=$(extract_token "$REGISTER_RESPONSE")
+USER_ID=$(extract_user_id "$REGISTER_RESPONSE")
 
 if [ -z "$TOKEN" ] || [ -z "$USER_ID" ]; then
     echo -e "${RED}❌ Failed to register user${NC}"

@@ -38,11 +38,11 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
-        implementation("org.springframework.boot:spring-boot-starter-webflux")
+    // implementation("org.springframework.boot:spring-boot-starter-webflux") // Removed duplicate
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.security:spring-security-config")
     implementation("org.springframework.security:spring-security-core")
-
+    implementation("org.springframework.boot:spring-boot-starter-actuator") // Added Actuator
 
 }
 

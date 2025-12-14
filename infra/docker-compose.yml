@@ -95,10 +95,10 @@ services:
   # AUTH SERVICE
   # ===========================
   auth:
-    image: 992382842562.dkr.ecr.ap-south-1.amazonaws.com/rido-auth:latest
-    # build:
-    #   context: ..
-    #   dockerfile: docker/auth.Dockerfile
+    # image:s 992382842562.dkr.ecr.ap-south-1.amazonaws.com/rido-auth:latest
+    build:
+      context: ..
+      dockerfile: docker/auth.Dockerfile
     container_name: auth
     depends_on:
       postgres:

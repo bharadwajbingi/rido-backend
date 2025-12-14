@@ -96,6 +96,8 @@ public class AuthController {
     ) {
         log.info("DEBUG: Entering register method with username: " + req.username());
         String ip = ipExtractor.extractClientIp(request);
+        String deviceId = request.getHeader("X-Device-Id");
+        String userAgent = request.getHeader("User-Agent");
 
         log.info("auth_register_request", kv("username", req.username()), kv("ip", ip));
 
@@ -105,7 +107,18 @@ public class AuthController {
 
         log.info("auth_register_success", kv("username", req.username()), kv("ip", ip));
 
-        return ResponseEntity.ok(Map.of("status", "ok"));
+        // Auto-login after registration
+        TokenResponse resp = authService.login(
+                req.username(),
+                req.password(),
+                deviceId,
+                ip,
+                userAgent
+        );
+
+        log.info("auth_register_autologin_success", kv("username", req.username()), kv("ip", ip));
+
+        return ResponseEntity.ok(resp);
     }
 
     // =====================================================
