@@ -3,6 +3,7 @@
 FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /app
 
+
 RUN apk add --no-cache dos2unix
 
 COPY gradlew gradlew
