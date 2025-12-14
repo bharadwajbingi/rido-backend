@@ -118,3 +118,4 @@ management:
 
     tags:
       application: auth
+# CI Test Trigger
