@@ -118,5 +118,3 @@ management:
 
     tags:
       application: auth
-# CI Test Trigger
-# Real Fix Trigger 12/14/2025 18:11:39
