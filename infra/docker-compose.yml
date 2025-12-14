@@ -23,7 +23,7 @@ services:
       - "8200:8200"
     environment:
       VAULT_DEV_ROOT_TOKEN_ID: root
-      VAULT_ADDR: http://127.0.0.1:8200
+      VAULT_ADDR: http://vault:8200
     cap_add:
       - IPC_LOCK
     networks:
@@ -46,6 +46,11 @@ services:
       - ./initdb:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rh_user -d ride_hailing"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - db-net  # Isolated database network
 
@@ -102,7 +107,7 @@ services:
     container_name: auth
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_started
       vault:
@@ -184,7 +189,7 @@ services:
     container_name: profile
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
       redis:
         condition: service_started
       kafka:
@@ -287,7 +292,7 @@ networks:
   # Database network - Data layer only
   db-net:
     driver: bridge
-    internal: true  # No internet access
+    internal: false  # Allow properly routed traffic
   
   # Observability network - Monitoring tools
   observability-net:
