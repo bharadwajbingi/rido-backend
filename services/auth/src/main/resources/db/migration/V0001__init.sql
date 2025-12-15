@@ -83,7 +83,7 @@ ALTER TABLE audit_logs OWNER TO rh_user;
 --
 
 CREATE TABLE users (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     username character varying(150) NOT NULL,
     password_hash text NOT NULL,
     role character varying(20) DEFAULT 'USER'::character varying NOT NULL,
