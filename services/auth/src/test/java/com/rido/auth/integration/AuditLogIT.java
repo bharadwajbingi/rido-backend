@@ -30,7 +30,7 @@ public class AuditLogIT extends BaseIntegrationTest {
 
         List<AuditLog> logs = auditLogRepository.findAll();
         assertThat(logs).anyMatch(log ->
-                log.getEventType() == AuditEvent.REGISTRATION &&
+                log.getEventType() == AuditEvent.SIGNUP &&
                 log.getUsername().equals("audituser") &&
                 log.isSuccess() &&
                 log.getIpAddress() != null
@@ -82,7 +82,7 @@ public class AuditLogIT extends BaseIntegrationTest {
         com.rido.auth.dto.TokenResponse tokens = loginAndGetTokens("refreshaudit", "Password123!");
 
         // Refresh tokens
-        com.rido.auth.dto.RefreshRequest request = new com.rido.auth.dto.RefreshRequest(tokens.refreshToken());
+        com.rido.auth.dto.RefreshRequest request = new com.rido.auth.dto.RefreshRequest(tokens.getRefreshToken());
         org.springframework.http.HttpHeaders headers = headersWithDevice("test-device", "Test-Agent");
         org.springframework.http.HttpEntity<com.rido.auth.dto.RefreshRequest> entity = 
                 new org.springframework.http.HttpEntity<>(request, headers);
@@ -91,7 +91,7 @@ public class AuditLogIT extends BaseIntegrationTest {
 
         List<AuditLog> logs = auditLogRepository.findAll();
         assertThat(logs).anyMatch(log ->
-                log.getEventType() == AuditEvent.TOKEN_REFRESH &&
+                log.getEventType() == AuditEvent.REFRESH_TOKEN &&
                 log.isSuccess()
         );
     }
@@ -103,7 +103,7 @@ public class AuditLogIT extends BaseIntegrationTest {
         com.rido.auth.dto.TokenResponse tokens = loginAndGetTokens("deviceaudit", "Password123!", "device-1", "Agent-1");
 
         // Try to refresh with different device
-        com.rido.auth.dto.RefreshRequest request = new com.rido.auth.dto.RefreshRequest(tokens.refreshToken());
+        com.rido.auth.dto.RefreshRequest request = new com.rido.auth.dto.RefreshRequest(tokens.getRefreshToken());
         org.springframework.http.HttpHeaders headers = headersWithDevice("device-2", "Agent-1");
         org.springframework.http.HttpEntity<com.rido.auth.dto.RefreshRequest> entity = 
                 new org.springframework.http.HttpEntity<>(request, headers);
@@ -124,7 +124,7 @@ public class AuditLogIT extends BaseIntegrationTest {
         com.rido.auth.dto.TokenResponse tokens = loginAndGetTokens("revokeaudit", "Password123!");
 
         // Revoke all sessions
-        org.springframework.http.HttpHeaders headers = headersWithAuth(tokens.accessToken());
+        org.springframework.http.HttpHeaders headers = headersWithAuth(tokens.getAccessToken());
         org.springframework.http.HttpEntity<Void> entity = new org.springframework.http.HttpEntity<>(headers);
 
         restTemplate.postForEntity(baseUrl() + "/sessions/revoke-all", entity, String.class);
@@ -181,7 +181,7 @@ public class AuditLogIT extends BaseIntegrationTest {
 
         List<AuditLog> logs = auditLogRepository.findAll();
         assertThat(logs).anyMatch(log ->
-                log.getEventType() == AuditEvent.REGISTRATION &&
+                log.getEventType() == AuditEvent.SIGNUP &&
                 log.getUserId() != null &&
                 log.getUserId().equals(user.getId())
         );

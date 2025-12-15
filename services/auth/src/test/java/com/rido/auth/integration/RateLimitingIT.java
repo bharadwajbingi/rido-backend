@@ -54,7 +54,7 @@ public class RateLimitingIT extends BaseIntegrationTest {
     void shouldEnforceLoginIpRateLimit() {
         createTestUser("ipratetest", "Password123!");
 
-        LoginRequest request = new LoginRequest("ipratetest", "Password123!");
+        LoginRequest request = new LoginRequest("ipratetest", "Password123!", null, null, null);
 
         // Make 50 login requests
         for (int i = 0; i < 50; i++) {
@@ -85,7 +85,7 @@ public class RateLimitingIT extends BaseIntegrationTest {
     void shouldEnforceLoginUserRateLimitAfterFailures() {
         createTestUser("userratetest", "CorrectPassword!");
 
-        LoginRequest wrongRequest = new LoginRequest("userratetest", "WrongPassword!");
+        LoginRequest wrongRequest = new LoginRequest("userratetest", "WrongPassword!", null, null, null);
 
         // Make 10 failed attempts (account will lock at 5, but user rate limit checks at 10)
         for (int i = 0; i < 10; i++) {
@@ -121,7 +121,7 @@ public class RateLimitingIT extends BaseIntegrationTest {
         for (int i = 0; i < 20; i++) {
             TokenResponse tokens = loginAndGetTokens("refreshratetest", "Password123!");
 
-            RefreshRequest request = new RefreshRequest(tokens.refreshToken());
+            RefreshRequest request = new RefreshRequest(tokens.getRefreshToken());
             HttpHeaders headers = headersWithDevice("device-" + i, "Agent");
             HttpEntity<RefreshRequest> entity = new HttpEntity<>(request, headers);
 
@@ -135,7 +135,7 @@ public class RateLimitingIT extends BaseIntegrationTest {
 
         // 21st should be rate limited
         TokenResponse tokens = loginAndGetTokens("refreshratetest", "Password123!");
-        RefreshRequest request = new RefreshRequest(tokens.refreshToken());
+        RefreshRequest request = new RefreshRequest(tokens.getRefreshToken());
         HttpHeaders headers = headersWithDevice("device-21", "Agent");
         HttpEntity<RefreshRequest> entity = new HttpEntity<>(request, headers);
 

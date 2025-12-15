@@ -30,7 +30,7 @@ public class TokenRefreshIT extends BaseIntegrationTest {
         createTestUser("refreshuser", "Password123!");
         TokenResponse initialTokens = loginAndGetTokens("refreshuser", "Password123!");
 
-        String initialRefreshToken = initialTokens.refreshToken();
+        String initialRefreshToken = initialTokens.getRefreshToken();
 
         // Refresh tokens
         RefreshRequest request = new RefreshRequest(initialRefreshToken);
@@ -46,10 +46,10 @@ public class TokenRefreshIT extends BaseIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         TokenResponse newTokens = response.getBody();
         assertThat(newTokens).isNotNull();
-        assertThat(newTokens.accessToken()).isNotBlank();
-        assertThat(newTokens.accessToken()).isNotEqualTo(initialTokens.accessToken());
-        assertThat(newTokens.refreshToken()).isNotBlank();
-        assertThat(newTokens.refreshToken()).isNotEqualTo(initialRefreshToken);
+        assertThat(newTokens.getAccessToken()).isNotBlank();
+        assertThat(newTokens.getAccessToken()).isNotEqualTo(initialTokens.getAccessToken());
+        assertThat(newTokens.getRefreshToken()).isNotBlank();
+        assertThat(newTokens.getRefreshToken()).isNotEqualTo(initialRefreshToken);
 
         // Verify old refresh token is revoked
         String oldTokenHash = HashUtils.sha256(initialRefreshToken);
@@ -57,14 +57,14 @@ public class TokenRefreshIT extends BaseIntegrationTest {
         assertThat(oldToken.isRevoked()).isTrue();
 
         // Verify new refresh token exists
-        String newTokenHash = HashUtils.sha256(newTokens.refreshToken());
+        String newTokenHash = HashUtils.sha256(newTokens.getRefreshToken());
         RefreshTokenEntity newToken = refreshTokenRepository.findByTokenHash(newTokenHash).orElseThrow();
         assertThat(newToken.isRevoked()).isFalse();
 
         // Verify audit log
         List<AuditLog> logs = auditLogRepository.findAll();
         assertThat(logs).anyMatch(log ->
-                log.getEventType() == AuditEvent.TOKEN_REFRESH &&
+                log.getEventType() == AuditEvent.REFRESH_TOKEN &&
                 log.isSuccess()
         );
     }
@@ -92,13 +92,13 @@ public class TokenRefreshIT extends BaseIntegrationTest {
         TokenResponse tokens = loginAndGetTokens("revoketest", "Password123!");
 
         // Revoke the refresh token
-        String tokenHash = HashUtils.sha256(tokens.refreshToken());
+        String tokenHash = HashUtils.sha256(tokens.getRefreshToken());
         RefreshTokenEntity token = refreshTokenRepository.findByTokenHash(tokenHash).orElseThrow();
         token.setRevoked(true);
         refreshTokenRepository.save(token);
 
         // Try to refresh with revoked token
-        RefreshRequest request = new RefreshRequest(tokens.refreshToken());
+        RefreshRequest request = new RefreshRequest(tokens.getRefreshToken());
         HttpHeaders headers = headersWithDevice("test-device-id", "Test-User-Agent");
         HttpEntity<RefreshRequest> entity = new HttpEntity<>(request, headers);
 
@@ -118,13 +118,13 @@ public class TokenRefreshIT extends BaseIntegrationTest {
         TokenResponse tokens = loginAndGetTokens("expiretest", "Password123!");
 
         // Manually expire the token
-        String tokenHash = HashUtils.sha256(tokens.refreshToken());
+        String tokenHash = HashUtils.sha256(tokens.getRefreshToken());
         RefreshTokenEntity token = refreshTokenRepository.findByTokenHash(tokenHash).orElseThrow();
         token.setExpiresAt(Instant.now().minusSeconds(300)); // Expired 5 minutes ago
         refreshTokenRepository.save(token);
 
         // Try to refresh with expired token
-        RefreshRequest request = new RefreshRequest(tokens.refreshToken());
+        RefreshRequest request = new RefreshRequest(tokens.getRefreshToken());
         HttpHeaders headers = headersWithDevice("test-device-id", "Test-User-Agent");
         HttpEntity<RefreshRequest> entity = new HttpEntity<>(request, headers);
 
@@ -148,7 +148,7 @@ public class TokenRefreshIT extends BaseIntegrationTest {
         TokenResponse tokens = loginAndGetTokens("devicetest", "Password123!", "device-1", "Agent-1");
 
         // Try to refresh with different device ID
-        RefreshRequest request = new RefreshRequest(tokens.refreshToken());
+        RefreshRequest request = new RefreshRequest(tokens.getRefreshToken());
         HttpHeaders headers = headersWithDevice("device-2", "Agent-1");
         HttpEntity<RefreshRequest> entity = new HttpEntity<>(request, headers);
 
@@ -176,7 +176,7 @@ public class TokenRefreshIT extends BaseIntegrationTest {
         TokenResponse tokens = loginAndGetTokens("agenttest", "Password123!", "device-1", "Agent-1");
 
         // Try to refresh with different user agent
-        RefreshRequest request = new RefreshRequest(tokens.refreshToken());
+        RefreshRequest request = new RefreshRequest(tokens.getRefreshToken());
         HttpHeaders headers = headersWithDevice("device-1", "Agent-2");
         HttpEntity<RefreshRequest> entity = new HttpEntity<>(request, headers);
 
@@ -206,7 +206,7 @@ public class TokenRefreshIT extends BaseIntegrationTest {
             
             if (i < 20) {
                 // First 20 should succeed
-                RefreshRequest request = new RefreshRequest(tokens.refreshToken());
+                RefreshRequest request = new RefreshRequest(tokens.getRefreshToken());
                 HttpHeaders headers = headersWithDevice("device-" + i, "Agent");
                 HttpEntity<RefreshRequest> entity = new HttpEntity<>(request, headers);
 
@@ -218,7 +218,7 @@ public class TokenRefreshIT extends BaseIntegrationTest {
                 assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             } else {
                 // 21st should be rate limited
-                RefreshRequest request = new RefreshRequest(tokens.refreshToken());
+                RefreshRequest request = new RefreshRequest(tokens.getRefreshToken());
                 HttpHeaders headers = headersWithDevice("device-" + i, "Agent");
                 HttpEntity<RefreshRequest> entity = new HttpEntity<>(request, headers);
 
@@ -244,7 +244,7 @@ public class TokenRefreshIT extends BaseIntegrationTest {
         createTestUser("reusetest", "Password123!");
         TokenResponse tokens = loginAndGetTokens("reusetest", "Password123!");
 
-        String refreshToken = tokens.refreshToken();
+        String refreshToken = tokens.getRefreshToken();
 
         // Use token once
         RefreshRequest request = new RefreshRequest(refreshToken);
@@ -277,7 +277,7 @@ public class TokenRefreshIT extends BaseIntegrationTest {
         userRepository.delete(user);
 
         // Try to refresh
-        RefreshRequest request = new RefreshRequest(tokens.refreshToken());
+        RefreshRequest request = new RefreshRequest(tokens.getRefreshToken());
         HttpHeaders headers = headersWithDevice("test-device-id", "Test-User-Agent");
         HttpEntity<RefreshRequest> entity = new HttpEntity<>(request, headers);
 

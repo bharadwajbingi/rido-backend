@@ -35,8 +35,8 @@ public class LogoutIT extends BaseIntegrationTest {
         TokenResponse tokens = loginAndGetTokens("logoutuser", "Password123!");
 
         // Logout
-        LogoutRequest request = new LogoutRequest(tokens.refreshToken());
-        HttpHeaders headers = headersWithAuth(tokens.accessToken());
+        LogoutRequest request = new LogoutRequest(tokens.getRefreshToken());
+        HttpHeaders headers = headersWithAuth(tokens.getAccessToken());
         HttpEntity<LogoutRequest> entity = new HttpEntity<>(request, headers);
 
         ResponseEntity<String> response = restTemplate.postForEntity(
@@ -48,7 +48,7 @@ public class LogoutIT extends BaseIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         // Verify refresh token is revoked in database
-        String tokenHash = HashUtils.sha256(tokens.refreshToken());
+        String tokenHash = HashUtils.sha256(tokens.getRefreshToken());
         RefreshTokenEntity token = refreshTokenRepository.findByTokenHash(tokenHash).orElseThrow();
         assertThat(token.isRevoked()).isTrue();
     }
@@ -59,10 +59,10 @@ public class LogoutIT extends BaseIntegrationTest {
         createTestUser("blacklistuser", "Password123!");
         TokenResponse tokens = loginAndGetTokens("blacklistuser", "Password123!");
 
-        String accessToken = tokens.accessToken();
+        String accessToken = tokens.getAccessToken();
 
         // Logout
-        LogoutRequest request = new LogoutRequest(tokens.refreshToken());
+        LogoutRequest request = new LogoutRequest(tokens.getRefreshToken());
         HttpHeaders headers = headersWithAuth(accessToken);
         HttpEntity<LogoutRequest> entity = new HttpEntity<>(request, headers);
 
@@ -101,7 +101,7 @@ public class LogoutIT extends BaseIntegrationTest {
 
         // Try to logout with invalid refresh token
         LogoutRequest request = new LogoutRequest("invalid-refresh-token");
-        HttpHeaders headers = headersWithAuth(tokens.accessToken());
+        HttpHeaders headers = headersWithAuth(tokens.getAccessToken());
         HttpEntity<LogoutRequest> entity = new HttpEntity<>(request, headers);
 
         ResponseEntity<String> response = restTemplate.postForEntity(
@@ -125,8 +125,8 @@ public class LogoutIT extends BaseIntegrationTest {
         TokenResponse user2Tokens = loginAndGetTokens("user2", "Password456!");
 
         // Try to logout user2's session using user1's access token
-        LogoutRequest request = new LogoutRequest(user2Tokens.refreshToken());
-        HttpHeaders headers = headersWithAuth(user1Tokens.accessToken());
+        LogoutRequest request = new LogoutRequest(user2Tokens.getRefreshToken());
+        HttpHeaders headers = headersWithAuth(user1Tokens.getAccessToken());
         HttpEntity<LogoutRequest> entity = new HttpEntity<>(request, headers);
 
         ResponseEntity<String> response = restTemplate.postForEntity(
@@ -138,7 +138,7 @@ public class LogoutIT extends BaseIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
 
         // Verify user2's token is NOT revoked
-        String tokenHash = HashUtils.sha256(user2Tokens.refreshToken());
+        String tokenHash = HashUtils.sha256(user2Tokens.getRefreshToken());
         RefreshTokenEntity token = refreshTokenRepository.findByTokenHash(tokenHash).orElseThrow();
         assertThat(token.isRevoked()).isFalse();
     }
@@ -150,7 +150,7 @@ public class LogoutIT extends BaseIntegrationTest {
         TokenResponse tokens = loginAndGetTokens("noheaderlogout", "Password123!");
 
         // Logout without Authorization header
-        LogoutRequest request = new LogoutRequest(tokens.refreshToken());
+        LogoutRequest request = new LogoutRequest(tokens.getRefreshToken());
         ResponseEntity<String> response = restTemplate.postForEntity(
                 baseUrl() + "/logout",
                 request,
@@ -162,7 +162,7 @@ public class LogoutIT extends BaseIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         // Verify refresh token is revoked
-        String tokenHash = HashUtils.sha256(tokens.refreshToken());
+        String tokenHash = HashUtils.sha256(tokens.getRefreshToken());
         RefreshTokenEntity token = refreshTokenRepository.findByTokenHash(tokenHash).orElseThrow();
         assertThat(token.isRevoked()).isTrue();
     }
@@ -174,14 +174,14 @@ public class LogoutIT extends BaseIntegrationTest {
         TokenResponse tokens = loginAndGetTokens("ttluser", "Password123!");
 
         // Logout
-        LogoutRequest request = new LogoutRequest(tokens.refreshToken());
-        HttpHeaders headers = headersWithAuth(tokens.accessToken());
+        LogoutRequest request = new LogoutRequest(tokens.getRefreshToken());
+        HttpHeaders headers = headersWithAuth(tokens.getAccessToken());
         HttpEntity<LogoutRequest> entity = new HttpEntity<>(request, headers);
 
         restTemplate.postForEntity(baseUrl() + "/logout", entity, String.class);
 
         // Check TTL
-        String jti = extractJtiFromToken(tokens.accessToken());
+        String jti = extractJtiFromToken(tokens.getAccessToken());
         String blacklistKey = "auth:jti:blacklist:" + jti;
         Long ttl = redisTemplate.getExpire(blacklistKey, TimeUnit.SECONDS);
 

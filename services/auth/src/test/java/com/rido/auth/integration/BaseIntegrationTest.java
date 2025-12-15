@@ -171,7 +171,9 @@ public abstract class BaseIntegrationTest {
      * Login with custom device info
      */
     protected TokenResponse loginAndGetTokens(String username, String password, String deviceId, String userAgent) {
-        LoginRequest request = new LoginRequest(username, password);
+        // LoginRequest record requires 5 parameters: username, password, deviceId, ip, userAgent
+        // Note: deviceId and userAgent are also passed via headers (controller uses headers, not request body)
+        LoginRequest request = new LoginRequest(username, password, null, null, null);
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Device-Id", deviceId);

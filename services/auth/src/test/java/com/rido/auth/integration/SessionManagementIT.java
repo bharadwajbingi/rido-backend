@@ -35,8 +35,8 @@ public class SessionManagementIT extends BaseIntegrationTest {
         TokenResponse session2 = loginAndGetTokens("multisession", "Password123!", "device-2", "Agent-2");
         TokenResponse session3 = loginAndGetTokens("multisession", "Password123!", "device-3", "Agent-3");
 
-        assertThat(session1.refreshToken()).isNotEqualTo(session2.refreshToken());
-        assertThat(session2.refreshToken()).isNotEqualTo(session3.refreshToken());
+        assertThat(session1.getRefreshToken()).isNotEqualTo(session2.getRefreshToken());
+        assertThat(session2.getRefreshToken()).isNotEqualTo(session3.getRefreshToken());
 
         // Verify all sessions exist in database
         UserEntity user = userRepository.findByUsername("multisession").orElseThrow();
@@ -55,7 +55,7 @@ public class SessionManagementIT extends BaseIntegrationTest {
         loginAndGetTokens("listsessions", "Password123!", "device-3", "Agent-3");
 
         // List sessions
-        HttpHeaders headers = headersWithAuth(token1.accessToken());
+        HttpHeaders headers = headersWithAuth(token1.getAccessToken());
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
         ResponseEntity<List<SessionDTO>> response = restTemplate.exchange(
@@ -124,7 +124,7 @@ public class SessionManagementIT extends BaseIntegrationTest {
         loginAndGetTokens("revokeall", "Password123!", "device-3", "Agent-3");
 
         // Revoke all sessions
-        HttpHeaders headers = headersWithAuth(activeToken.accessToken());
+        HttpHeaders headers = headersWithAuth(activeToken.getAccessToken());
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
         ResponseEntity<String> response = restTemplate.postForEntity(
@@ -158,7 +158,7 @@ public class SessionManagementIT extends BaseIntegrationTest {
         loginAndGetTokens("revokeone", "Password123!", "device-3", "Agent-3");
 
         // Get session IDs
-        HttpHeaders headers = headersWithAuth(token1.accessToken());
+        HttpHeaders headers = headersWithAuth(token1.getAccessToken());
         HttpEntity<Void> listEntity = new HttpEntity<>(headers);
 
         ResponseEntity<List<SessionDTO>> listResponse = restTemplate.exchange(
@@ -214,7 +214,7 @@ public class SessionManagementIT extends BaseIntegrationTest {
         UUID user2SessionId = user2Sessions.get(0).getId();
 
         // User1 tries to revoke user2's session
-        HttpHeaders headers = headersWithAuth(user1Token.accessToken());
+        HttpHeaders headers = headersWithAuth(user1Token.getAccessToken());
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
         ResponseEntity<String> response = restTemplate.postForEntity(
@@ -248,7 +248,7 @@ public class SessionManagementIT extends BaseIntegrationTest {
         TokenResponse token = loginAndGetTokens("auditrevoke", "Password123!");
 
         // Revoke all sessions
-        HttpHeaders headers = headersWithAuth(token.accessToken());
+        HttpHeaders headers = headersWithAuth(token.getAccessToken());
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
         restTemplate.postForEntity(

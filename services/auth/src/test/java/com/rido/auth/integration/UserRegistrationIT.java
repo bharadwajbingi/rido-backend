@@ -43,9 +43,9 @@ public class UserRegistrationIT extends BaseIntegrationTest {
         // Verify HTTP response
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().accessToken()).isNotBlank();
-        assertThat(response.getBody().refreshToken()).isNotBlank();
-        assertThat(response.getBody().expiresIn()).isEqualTo(60); // From test profile
+        assertThat(response.getBody().getAccessToken()).isNotBlank();
+        assertThat(response.getBody().getRefreshToken()).isNotBlank();
+        assertThat(response.getBody().getExpiresIn()).isEqualTo(60); // From test profile
 
         // Verify user persisted in database
         UserEntity user = userRepository.findByUsername("testuser").orElseThrow();
@@ -64,7 +64,7 @@ public class UserRegistrationIT extends BaseIntegrationTest {
         List<AuditLog> auditLogs = auditLogRepository.findAll();
         assertThat(auditLogs).isNotEmpty();
         assertThat(auditLogs).anyMatch(log -> 
-                log.getEventType() == AuditEvent.REGISTRATION &&
+                log.getEventType() == AuditEvent.SIGNUP &&
                 log.isSuccess() &&
                 log.getUserId().equals(user.getId())
         );

@@ -36,9 +36,9 @@ public class LoginFlowIT extends BaseIntegrationTest {
 
         TokenResponse tokens = loginAndGetTokens("validuser", "Password123!");
 
-        assertThat(tokens.accessToken()).isNotBlank();
-        assertThat(tokens.refreshToken()).isNotBlank();
-        assertThat(tokens.expiresIn()).isEqualTo(60);
+        assertThat(tokens.getAccessToken()).isNotBlank();
+        assertThat(tokens.getRefreshToken()).isNotBlank();
+        assertThat(tokens.getExpiresIn()).isEqualTo(60);
 
         // Verify audit log
         List<AuditLog> logs = auditLogRepository.findAll();
@@ -54,7 +54,7 @@ public class LoginFlowIT extends BaseIntegrationTest {
     void shouldFailLoginWithInvalidPassword() {
         createTestUser("testuser", "CorrectPassword!");
 
-        LoginRequest request = new LoginRequest("testuser", "WrongPassword!");
+        LoginRequest request = new LoginRequest("testuser", "WrongPassword!", null, null, null);
         ResponseEntity<String> response = restTemplate.postForEntity(
                 baseUrl() + "/login",
                 request,
@@ -83,7 +83,7 @@ public class LoginFlowIT extends BaseIntegrationTest {
     void shouldLockAccountAfterFailedAttempts() {
         createTestUser("locktest", "CorrectPassword!");
 
-        LoginRequest wrongRequest = new LoginRequest("locktest", "WrongPassword!");
+        LoginRequest wrongRequest = new LoginRequest("locktest", "WrongPassword!", null, null, null);
 
         // Attempt 5 failed logins
         for (int i = 0; i < 5; i++) {
@@ -115,7 +115,7 @@ public class LoginFlowIT extends BaseIntegrationTest {
         assertThat(locked).isTrue();
 
         // Even with correct password, login should fail while locked
-        LoginRequest correctRequest = new LoginRequest("locktest", "CorrectPassword!");
+        LoginRequest correctRequest = new LoginRequest("locktest", "CorrectPassword!", null, null, null);
         ResponseEntity<String> stillLockedResponse = restTemplate.postForEntity(
                 baseUrl() + "/login",
                 correctRequest,
@@ -127,7 +127,7 @@ public class LoginFlowIT extends BaseIntegrationTest {
     @Test
     @DisplayName("Should fail login for non-existent user")
     void shouldFailLoginForNonExistentUser() {
-        LoginRequest request = new LoginRequest("nonexistent", "Password123!");
+        LoginRequest request = new LoginRequest("nonexistent", "Password123!", null, null, null);
 
         ResponseEntity<String> response = restTemplate.postForEntity(
                 baseUrl() + "/login",
@@ -151,7 +151,7 @@ public class LoginFlowIT extends BaseIntegrationTest {
     void shouldEnforceIpRateLimit() {
         createTestUser("ratelimituser", "Password123!");
 
-        LoginRequest request = new LoginRequest("ratelimituser", "Password123!");
+        LoginRequest request = new LoginRequest("ratelimituser", "Password123!", null, null, null);
 
         // Make 50 successful login attempts
         for (int i = 0; i < 50; i++) {
@@ -183,7 +183,7 @@ public class LoginFlowIT extends BaseIntegrationTest {
     void shouldEnforceUserRateLimitAfterFailures() {
         createTestUser("failratelimit", "CorrectPassword!");
 
-        LoginRequest wrongRequest = new LoginRequest("failratelimit", "WrongPassword!");
+        LoginRequest wrongRequest = new LoginRequest("failratelimit", "WrongPassword!", null, null, null);
 
         // Make 10 failed login attempts
         for (int i = 0; i < 10; i++) {
@@ -217,7 +217,7 @@ public class LoginFlowIT extends BaseIntegrationTest {
         // Create user and fail login 5 times to lock
         createTestUser("clearlock", "CorrectPassword!");
 
-        LoginRequest wrongRequest = new LoginRequest("clearlock", "WrongPassword!");
+        LoginRequest wrongRequest = new LoginRequest("clearlock", "WrongPassword!", null, null, null);
         for (int i = 0; i < 5; i++) {
             restTemplate.postForEntity(baseUrl() + "/login", wrongRequest, String.class);
         }
@@ -233,7 +233,7 @@ public class LoginFlowIT extends BaseIntegrationTest {
         redisTemplate.delete("auth:login:attempts:clearlock");
 
         // Now login with correct password
-        LoginRequest correctRequest = new LoginRequest("clearlock", "CorrectPassword!");
+        LoginRequest correctRequest = new LoginRequest("clearlock", "CorrectPassword!", null, null, null);
         ResponseEntity<TokenResponse> response = restTemplate.postForEntity(
                 baseUrl() + "/login",
                 correctRequest,
@@ -252,7 +252,7 @@ public class LoginFlowIT extends BaseIntegrationTest {
     void shouldIncludeDeviceInfoInLogin() {
         createTestUser("deviceuser", "Password123!");
 
-        LoginRequest request = new LoginRequest("deviceuser", "Password123!");
+        LoginRequest request = new LoginRequest("deviceuser", "Password123!", null, null, null);
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Device-Id", "custom-device-123");
         headers.set("User-Agent", "Custom-User-Agent/1.0");

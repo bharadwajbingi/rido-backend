@@ -38,7 +38,7 @@ public class CircuitBreakerIT extends BaseIntegrationTest {
         redis.stop();
 
         // Rate limit should fail-open (allow request)
-        LoginRequest request = new LoginRequest("circuituser", "Password123!");
+        LoginRequest request = new LoginRequest("circuituser", "Password123!", null, null, null);
         ResponseEntity<TokenResponse> response = restTemplate.postForEntity(
                 baseUrl() + "/login",
                 request,
@@ -59,13 +59,13 @@ public class CircuitBreakerIT extends BaseIntegrationTest {
         TokenResponse tokens = loginAndGetTokens("blacklistcircuit", "Password123!");
 
         // Logout to blacklist token
-        com.rido.auth.dto.LogoutRequest logoutRequest = new com.rido.auth.dto.LogoutRequest(tokens.refreshToken());
-        HttpHeaders headers = headersWithAuth(tokens.accessToken());
+        com.rido.auth.dto.LogoutRequest logoutRequest = new com.rido.auth.dto.LogoutRequest(tokens.getRefreshToken());
+        HttpHeaders headers = headersWithAuth(tokens.getAccessToken());
         HttpEntity<com.rido.auth.dto.LogoutRequest> entity = new HttpEntity<>(logoutRequest, headers);
         restTemplate.postForEntity(baseUrl() + "/logout", entity, String.class);
 
         // Extract JTI
-        String jti = extractJtiFromToken(tokens.accessToken());
+        String jti = extractJtiFromToken(tokens.getAccessToken());
 
         // Verify blacklisted while Redis is up
         boolean blacklistedBeforeStop = tokenBlacklistService.isBlacklisted(jti);
@@ -90,7 +90,7 @@ public class CircuitBreakerIT extends BaseIntegrationTest {
         // Stop Redis
         redis.stop();
 
-        LoginRequest wrongRequest = new LoginRequest("dblockuser", "WrongPassword!");
+        LoginRequest wrongRequest = new LoginRequest("dblockuser", "WrongPassword!", null, null, null);
 
         // Make 5 failed attempts (should trigger DB lock even without Redis)
         for (int i = 0; i < 5; i++) {

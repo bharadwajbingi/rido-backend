@@ -26,7 +26,7 @@ public class TransactionalBehaviorIT extends BaseIntegrationTest {
         createTestUser("rotateuser", "Password123!");
         TokenResponse initialTokens = loginAndGetTokens("rotateuser", "Password123!");
 
-        String oldRefreshToken = initialTokens.refreshToken();
+        String oldRefreshToken = initialTokens.getRefreshToken();
         String oldTokenHash = HashUtils.sha256(oldRefreshToken);
 
         // Refresh tokens
@@ -45,7 +45,7 @@ public class TransactionalBehaviorIT extends BaseIntegrationTest {
         TokenResponse newTokens = response.getBody();
         assertThat(newTokens).isNotNull();
 
-        String newTokenHash = HashUtils.sha256(newTokens.refreshToken());
+        String newTokenHash = HashUtils.sha256(newTokens.getRefreshToken());
 
         // Verify old token is revoked
         RefreshTokenEntity oldToken = refreshTokenRepository.findByTokenHash(oldTokenHash).orElseThrow();
@@ -124,7 +124,7 @@ public class TransactionalBehaviorIT extends BaseIntegrationTest {
 
         // Revoke all sessions
         org.springframework.http.HttpHeaders headers = headersWithAuth(
-                loginAndGetTokens("concurrent", "Password123!").accessToken()
+                loginAndGetTokens("concurrent", "Password123!").getAccessToken()
         );
         org.springframework.http.HttpEntity<Void> entity = new org.springframework.http.HttpEntity<>(headers);
 
@@ -167,15 +167,15 @@ public class TransactionalBehaviorIT extends BaseIntegrationTest {
         long initialAuditCount = auditLogRepository.count();
 
         // Logout
-        com.rido.auth.dto.LogoutRequest request = new com.rido.auth.dto.LogoutRequest(tokens.refreshToken());
-        org.springframework.http.HttpHeaders headers = headersWithAuth(tokens.accessToken());
+        com.rido.auth.dto.LogoutRequest request = new com.rido.auth.dto.LogoutRequest(tokens.getRefreshToken());
+        org.springframework.http.HttpHeaders headers = headersWithAuth(tokens.getAccessToken());
         org.springframework.http.HttpEntity<com.rido.auth.dto.LogoutRequest> entity = 
                 new org.springframework.http.HttpEntity<>(request, headers);
 
         restTemplate.postForEntity(baseUrl() + "/logout", entity, String.class);
 
         // Verify token revoked
-        String tokenHash = HashUtils.sha256(tokens.refreshToken());
+        String tokenHash = HashUtils.sha256(tokens.getRefreshToken());
         RefreshTokenEntity token = refreshTokenRepository.findByTokenHash(tokenHash).orElseThrow();
         assertThat(token.isRevoked()).isTrue();
 
