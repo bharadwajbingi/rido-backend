@@ -59,7 +59,7 @@ public class AuditLogIT extends BaseIntegrationTest {
         // Attempt failed login
         org.springframework.http.ResponseEntity<String> response = restTemplate.postForEntity(
                 baseUrl() + "/login",
-                new com.rido.auth.dto.LoginRequest("failaudit", "WrongPassword!"),
+                new com.rido.auth.dto.LoginRequest("failaudit", "WrongPassword!", null, null, null),
                 String.class
         );
 

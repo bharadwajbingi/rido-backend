@@ -66,9 +66,9 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("com.h2database:h2")
     
-    // Testcontainers for Integration Tests
-    testImplementation("org.testcontainers:junit-jupiter:1.19.3")
-    testImplementation("org.testcontainers:postgresql:1.19.3")
+    // Testcontainers for Integration Tests (upgraded for Docker API 1.52 compatibility)
+    testImplementation("org.testcontainers:junit-jupiter:1.19.8")
+    testImplementation("org.testcontainers:postgresql:1.19.8")
     testImplementation("org.awaitility:awaitility:4.2.0")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
 
