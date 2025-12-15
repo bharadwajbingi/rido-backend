@@ -53,7 +53,10 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run Auth Unit Tests
-        run: ./gradlew :services:auth:test
+        run: ./gradlew :services:auth:test --tests "*Test"
+
+      - name: Run Auth Integration Tests
+        run: ./gradlew :services:auth:test --tests "*IT" -DexcludeTags=slow
 
       - name: Build Auth Docker Image
         run: docker build -t rido-auth-check -f docker/auth.Dockerfile .

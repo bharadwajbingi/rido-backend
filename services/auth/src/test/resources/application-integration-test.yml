@@ -1,0 +1,84 @@
+spring:
+  application:
+    name: auth
+  
+  # Disable Vault for integration tests
+  config:
+    import: optional:vault://
+  
+  cloud:
+    vault:
+      enabled: false
+  
+  # Database configuration (injected dynamically by Testcontainers)
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/test_db}
+    username: ${DB_USERNAME:test_user}
+    password: ${DB_PASSWORD:test_password}
+  
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+    schemas: auth
+    default-schema: auth
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: auth
+        format_sql: true
+    show-sql: false
+  
+  # Redis configuration (injected dynamically by Testcontainers)
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 1000ms
+
+# Disable mTLS for integration tests (standalone mode)
+auth:
+  standalone:
+    enabled: true
+  login:
+    max-failed-attempts: 5
+    lockout-duration-seconds: 300
+    max-active-sessions: 5
+
+# Shorter JWT TTLs for faster tests
+jwt:
+  accessTokenTtlSeconds: 60
+  refreshTokenTtlSeconds: 300
+
+# Admin configuration
+admin:
+  server:
+    port: 9091
+  bootstrap:
+    enabled: false
+
+# Resilience4J Circuit Breaker
+resilience4j:
+  circuitbreaker:
+    instances:
+      redis:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 10s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

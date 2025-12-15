@@ -1,7 +1,10 @@
 package com.rido.auth.crypto;
 
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
+
 
 import java.security.*;
 import java.security.interfaces.RSAPrivateKey;
@@ -23,6 +26,7 @@ public class JwtKeyStore {
     private final org.springframework.vault.core.VaultTemplate vaultTemplate;
     private static final String VAULT_KEYS_PATH = "secret/data/auth/keys";
 
+    @Autowired(required = false)
     public JwtKeyStore(org.springframework.vault.core.VaultTemplate vaultTemplate) {
         this.vaultTemplate = vaultTemplate;
     }
