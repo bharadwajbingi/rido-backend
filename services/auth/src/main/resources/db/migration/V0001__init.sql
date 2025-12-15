@@ -4,8 +4,8 @@
 -- ==================================================
 
 -- 1. Extensions FIRST (before schema)
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public;
 
 -- 2. Schema creation
 CREATE SCHEMA IF NOT EXISTS auth;
