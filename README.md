@@ -3,6 +3,7 @@
 > ⚠️ **PRODUCTION READINESS STATUS**: This codebase requires **4-6 weeks of critical fixes** before production deployment.  
 > See [Fix Surface Map](docs/fix_surface_map.md) for complete remediation roadmap.
 
+ 
 A production-grade microservices backend for ride-hailing platforms, inspired by Uber/Ola. Built with Spring Boot 3, Kotlin, Java 21, reactive programming, and event-driven architecture.
 
 [![Status](https://img.shields.io/badge/Status-Active_Development-yellow)](https://github.com/bharadwajbingi/rido-backend)
